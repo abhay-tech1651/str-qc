@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Command } from "cmdk";
 import {
-  AlertTriangle, BookOpen, ClipboardCheck, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, TrendingUp, Upload,
+  AlertTriangle, BookOpen, ClipboardCheck, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, Upload,
 } from "lucide-react";
 import { Button, Tip } from "./ui";
 import { cn } from "@/lib/format";
@@ -27,9 +27,6 @@ const NAV = [
     { href: "/campaigns", label: "Campaigns", icon: Megaphone },
     { href: "/keywords", label: "Keywords", icon: KeyRound },
     { href: "/competitors", label: "Competitors", icon: Swords },
-  ] },
-  { group: "SEO", items: [
-    { href: "/seo", label: "Sep vs Oct", icon: TrendingUp },
   ] },
   { group: "Data", items: [
     { href: "/data", label: "Import data", icon: Database },

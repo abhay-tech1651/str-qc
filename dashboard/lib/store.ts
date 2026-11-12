@@ -196,11 +196,6 @@ export async function importAgencyWorkbook(buf: Buffer, name: string): Promise<I
   return { name, kind: "agency_sheet", rows: rows.length, ...s };
 }
 
-/** The SEO month-to-month snapshot (data/app/seo.json, private; written from Search Console, GA4 and the CRM). */
-export function seoSnapshot<T>(): T | null {
-  return readJson<T | null>(path.join(DATA, "seo.json"), null);
-}
-
 /**
  * The agency STR sheet's ID. It lives in data/app/settings.json, private data that never goes into git as a plain
  * file (it travels only inside the encrypted vault), because anyone who has the ID of a sheet shared by link can read it.

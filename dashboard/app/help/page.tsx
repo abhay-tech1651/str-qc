@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowUpRight, BookOpen, ClipboardCheck, Database, FolderKanban, KeyRound, LayoutDashboard, Megaphone, Search, Swords, TrendingUp,
+  AlertTriangle, ArrowUpRight, BookOpen, ClipboardCheck, Database, FolderKanban, KeyRound, LayoutDashboard, Megaphone, Search, Swords,
 } from "lucide-react";
 import { getModel, hasData } from "@/lib/store";
 import { n0, pcolor } from "@/lib/format";
@@ -21,7 +21,6 @@ const PAGES: { href: string; name: string; icon: typeof LayoutDashboard; q: stri
   { href: "/campaigns", name: "Campaigns", icon: Megaphone, q: "Is each campaign spending its budget, and on how many of the possible searches can it show?" },
   { href: "/keywords", name: "Keywords", icon: KeyRound, q: "Which keywords spend without conversions, sit on weak landing pages or have a low Quality Score?" },
   { href: "/competitors", name: "Competitors", icon: Swords, q: "Who else bids on the same searches, and how often do they appear above us?" },
-  { href: "/seo", name: "SEO: Sep vs Oct", icon: TrendingUp, q: "Did visits from Google search grow from September to October, did organic leads grow, and what to do next?" },
   { href: "/data", name: "Import data", icon: Database, q: "Is today's data loaded, and does the agency sheet match Google's report?" },
 ];
 

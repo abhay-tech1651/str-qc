@@ -6,7 +6,7 @@ const base = process.argv[2] || "http://127.0.0.1:3000";
 const pages = [
   "/", "/issues", "/projects/ivory", "/projects/clove", "/projects/cocoa", "/projects/jade",
   "/projects/ivory?tab=campaigns", "/projects/ivory?tab=terms", "/projects/ivory?tab=keywords", "/projects/ivory?tab=agency", "/projects/ivory?tab=ctm",
-  "/agency", "/agency?tab=risky", "/search-terms", "/search-terms?project=clove", "/campaigns", "/keywords", "/competitors", "/data", "/seo", "/help", "/handbook",
+  "/agency", "/agency?tab=risky", "/search-terms", "/search-terms?project=clove", "/campaigns", "/keywords", "/competitors", "/data", "/help", "/handbook",
 ];
 const bad = /\bNaN\b|\bundefined\b|\[object Object\]|\bInfinity\b/;
 let failed = 0;

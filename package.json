@@ -1,0 +1,26 @@
+{
+  "name": "county-search-qc",
+  "private": true,
+  "version": "3.1.0",
+  "description": "County Group Search QC: daily quality check of the agency-run Google Ads search campaigns (dashboard, engine, encrypted data vault)",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "save": "node scripts/save.mjs",
+    "vault": "node scripts/vault.mjs",
+    "test": "node --test tests-js/*.test.js",
+    "smoke": "node dashboard/scripts/smoke.mjs",
+    "build": "node dev/build-ui.js",
+    "create": "node dev/create.js",
+    "push": "node dev/build-ui.js && clasp push --force",
+    "deploy": "clasp create-deployment --description \"County Search QC\"",
+    "login": "clasp login",
+    "dashboard": "cd dashboard && npm run build && npm run start",
+    "dashboard:dev": "cd dashboard && npm run dev"
+  },
+  "devDependencies": {
+    "@google/clasp": "3.4.1"
+  }
+}

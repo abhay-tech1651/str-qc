@@ -1,0 +1,422 @@
+<title>County Search Ads Handbook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a field manual. Sticky contents rail on the left, one long readable column, worked County examples set as "ledger" cards. */
+:root {
+  --bg: #f3f6f4; --paper: #ffffff; --ink: #142019; --ink-2: #44544b; --ink-3: #74837a; --line: #dce4df;
+  --accent: #0f6a43; --accent-soft: #e2f1e9; --warn: #a3620a; --warn-soft: #fbf0dc; --bad: #b3362b; --bad-soft: #fae7e5;
+  --code: #eef3f0;
+  --f-display: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c1310; --paper: #131d18; --ink: #e4eee8; --ink-2: #b0c0b7; --ink-3: #82938a; --line: #24342c;
+  --accent: #5cd394; --accent-soft: #163626; --warn: #eaa64a; --warn-soft: #3a2b12; --bad: #f07a6e; --bad-soft: #3b1c19; --code: #1a2721;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0c1310; --paper: #131d18; --ink: #e4eee8; --ink-2: #b0c0b7; --ink-3: #82938a; --line: #24342c;
+  --accent: #5cd394; --accent-soft: #163626; --warn: #eaa64a; --warn-soft: #3a2b12; --bad: #f07a6e; --bad-soft: #3b1c19; --code: #1a2721;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.65 var(--f-body); margin: 0; }
+.wrap { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto;
+  padding-block: 36px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
+nav.toc .part { font: 600 11px/1 var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin: 18px 0 6px; }
+nav.toc a { color: var(--ink-2); text-decoration: none; padding: 4px 10px; border-radius: 7px; border-left: 2px solid transparent; }
+nav.toc a:hover { color: var(--ink); background: var(--paper); }
+nav.toc a:focus-visible, a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { min-width: 0; max-width: 760px; }
+header.top { margin-bottom: 30px; }
+header.top .kicker { font: 600 12px var(--f-mono); color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+h1 { font: 700 40px/1.12 var(--f-display); letter-spacing: -.02em; margin: 8px 0 12px; text-wrap: balance; }
+header.top p { color: var(--ink-2); font-size: 18px; margin: 0; max-width: 62ch; }
+.howto { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+.howto span { font-size: 13px; background: var(--paper); border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; color: var(--ink-2); }
+section.part { margin-top: 56px; }
+.partlabel { font: 600 12px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); border-top: 2px solid var(--accent); padding-top: 10px; }
+h2 { font: 700 28px/1.2 var(--f-display); letter-spacing: -.015em; margin: 6px 0 8px; text-wrap: balance; }
+h3 { font: 650 20px/1.3 var(--f-display); margin: 38px 0 8px; text-wrap: balance; scroll-margin-top: 20px; }
+h4 { font: 650 16px/1.4 var(--f-display); margin: 22px 0 6px; }
+p, li { max-width: 68ch; }
+ul, ol { padding-left: 22px; }
+li { margin: 4px 0; }
+code { font: 13.5px var(--f-mono); background: var(--code); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+.lead { color: var(--ink-2); font-size: 17px; }
+.tbl { overflow-x: auto; margin: 14px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 650; color: var(--ink-2); background: var(--bg); font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+.ledger { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 16px 0; display: grid; gap: 4px; }
+.ledger .tag { font: 600 11px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ledger.warn { background: var(--warn-soft); border-color: transparent; }
+.ledger.warn .tag { color: var(--warn); }
+.ledger.bad { background: var(--bad-soft); border-color: transparent; }
+.ledger.bad .tag { color: var(--bad); }
+.ledger p { margin: 0; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: .95em; }
+pre.tree { font: 13.5px/1.6 var(--f-mono); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; }
+.rule { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.rule:first-of-type { border-top: 0; }
+.rule .n { font: 700 15px var(--f-mono); color: var(--accent); background: var(--accent-soft); border-radius: 8px; height: 30px; display: grid; place-items: center; }
+.rule p { margin: 2px 0; }
+.verdict { font-weight: 650; }
+.v-ex { color: var(--bad); } .v-add { color: var(--accent); } .v-leave { color: var(--ink-3); }
+/* tCPA calculator */
+.calc { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin: 18px 0; }
+.calc .row { display: flex; gap: 18px; flex-wrap: wrap; }
+.calc label { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.calc input { font: 600 16px var(--f-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 150px; }
+.calc .out { margin-top: 14px; font-size: 15px; }
+.calc .out b { font: 700 24px var(--f-mono); color: var(--accent); }
+.isbar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin: 10px 0 6px; font: 600 12px var(--f-mono); color: #fff; }
+.isbar div { display: grid; place-items: center; white-space: nowrap; overflow: hidden; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+footer { margin-top: 64px; font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 14px; }
+@media (max-width: 860px) {
+  .wrap { grid-template-columns: 1fr; gap: 0; padding-block: 20px 60px; }
+  nav.toc { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  nav.toc .part { width: 100%; margin: 10px 0 2px; }
+  nav.toc a { border: 1px solid var(--line); background: var(--paper); }
+  h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="part">Part 1 · Basics</div>
+  <a href="#auction">The auction</a>
+  <a href="#structure">How an account is built</a>
+  <a href="#keyword-vs-term">Keyword vs search term</a>
+  <a href="#match-types">Match types</a>
+  <a href="#negatives">Negative keywords</a>
+  <a href="#funnelling">Ad groups and funnelling</a>
+  <a href="#bidding">Bidding and target CPA</a>
+  <a href="#conversions">Conversions vs real leads</a>
+  <div class="part">Part 2 · Reports</div>
+  <a href="#impression-share">Impression share</a>
+  <a href="#quality-score">Quality Score</a>
+  <a href="#auction-insights">Auction insights</a>
+  <a href="#status-notes">Status notes</a>
+  <a href="#which-report">Which report answers what</a>
+  <div class="part">Part 3 · The STR SOP</div>
+  <a href="#what-sop">What an SOP is</a>
+  <a href="#roles">Who does what, and when</a>
+  <a href="#decision-rules">Decision rules</a>
+  <a href="#writing-negatives">Writing a negative</a>
+  <a href="#qc-checklist">Daily QC checklist</a>
+  <a href="#glossary">Glossary</a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="kicker">County Group · Paid search</div>
+  <h1>County Search Ads Handbook</h1>
+  <p>How Google Ads works, how to read its reports, and the daily routine we use to keep money away from the wrong searches. Written for someone starting from zero, with examples from our own account.</p>
+  <div class="howto"><span>Read Part 1 once, top to bottom</span><span>Keep Part 2 open while reading reports</span><span>Part 3 is the daily routine</span></div>
+</header>
+
+<!-- ===================== PART 1 ===================== -->
+<section class="part">
+<div class="partlabel">Part 1 · Google Ads from zero</div>
+<h2>What actually happens when someone searches</h2>
+
+<h3 id="auction">1. The auction</h3>
+<ol>
+  <li>A person types something into Google, for example <code>3 bhk flat in noida</code>. What they typed is the <b>search term</b>.</li>
+  <li>In a fraction of a second Google runs an <b>auction</b> among every advertiser who said they want searches like that.</li>
+  <li>Positions are decided by <b>Ad Rank</b>: how much you are willing to pay (your <b>bid</b>) combined with how good and relevant Google thinks your ad and page are (<b>quality</b>). A very relevant ad can beat a bigger bid.</li>
+  <li>The winners show. You pay only when someone <b>clicks</b> (cost per click, <b>CPC</b>), usually a little less than your bid: roughly what you needed to beat the advertiser below you.</li>
+</ol>
+<div class="ledger warn"><span class="tag">Remember this one</span>
+<p>Google lets <b>one ad per advertiser</b> into each auction. If two of <i>our</i> campaigns want the same search, only the one with the higher Ad Rank takes part. Our own campaigns can block each other.</p></div>
+
+<h3 id="structure">2. How an account is built</h3>
+<pre class="tree">Account (County Group)
+ └─ Campaign      ROI_Ivory_Non_Brand_Search     ← budget, bidding, locations
+     └─ Ad group  Flats in Noida                  ← one theme
+         ├─ Keywords  "3 bhk flat in noida"        ← what we ask Google for
+         └─ Ads       headlines, descriptions      ← what the person sees</pre>
+<div class="tbl"><table>
+<thead><tr><th>Campaign type</th><th>Who it is for</th><th>Example search</th></tr></thead>
+<tbody>
+<tr><td><b>Brand</b></td><td>People who already typed our name</td><td><code>ivory county sector 115 noida</code></td></tr>
+<tr><td><b>Non-brand</b></td><td>People looking for homes in general</td><td><code>luxury flats in noida</code></td></tr>
+<tr><td><b>Competitor</b></td><td>People searching another builder's project at a similar price and place</td><td><code>ats kingston heath</code></td></tr>
+<tr><td><b>CTM</b></td><td>An Ivory campaign run by Google's own team, not the agency</td><td>Ivory_County_SearchCTM</td></tr>
+<tr><td><b>Performance Max</b></td><td>Google's automatic campaign across Search, YouTube, Maps and more</td><td>Clove P-Max</td></tr>
+</tbody></table></div>
+<div class="tbl"><table>
+<thead><tr><th>Project</th><th>Where</th><th>What we sell</th><th>Starting price</th></tr></thead>
+<tbody>
+<tr><td><b>Jade County</b></td><td>Wave City, NH-24, Ghaziabad</td><td>3 and 4 BHK; 5 BHK in Jade Gold</td><td class="num">₹2.71 Cr</td></tr>
+<tr><td><b>Ivory County</b></td><td>Sector 115, Noida</td><td>3 and 4 BHK; 5 BHK in Ivory Gold. <b>No villas, no penthouses.</b></td><td class="num">₹3.8 Cr</td></tr>
+<tr><td><b>Cocoa County</b></td><td>Sector 88A, Gurugram (Dwarka Expressway)</td><td>3 and 4 BHK; Cocoa Gold</td><td class="num">₹4.14 – 8 Cr</td></tr>
+<tr><td><b>Clove County</b></td><td>Noida</td><td>–</td><td class="num">₹8 Cr</td></tr>
+</tbody></table></div>
+
+<h3 id="keyword-vs-term">3. Keyword vs search term: the most important idea</h3>
+<ul>
+  <li>A <b>keyword</b> is what <i>we</i> give Google: "show my ad for searches like this".</li>
+  <li>A <b>search term</b> is what the <i>person</i> actually typed.</li>
+  <li>They are rarely identical. Google decides which searches are close enough, using the keyword's <b>match type</b>.</li>
+</ul>
+<div class="ledger bad"><span class="tag">From our account, 5 Nov</span>
+<p>Our keyword <code>"noida premium apartments"</code> (Clove non-brand) showed an ad for the search <code>skyline suites noida</code>, another builder's project. One click cost <b class="num">₹2,286</b>. Nobody typed our keyword; Google decided it was close enough.</p></div>
+
+<h3 id="match-types">4. Match types: how loosely Google may match</h3>
+<div class="tbl"><table>
+<thead><tr><th>Match type</th><th>Written as</th><th>Google may show the ad for</th></tr></thead>
+<tbody>
+<tr><td><b>Broad</b></td><td><code>luxury flats noida</code></td><td>Anything related in meaning, even without those words. Can match other builders' project names.</td></tr>
+<tr><td><b>Phrase</b></td><td><code>"luxury flats in noida"</code></td><td>Searches that include the meaning of the phrase, with words around it.</td></tr>
+<tr><td><b>Exact</b></td><td><code>[luxury flats in noida]</code></td><td>Searches with the same meaning, e.g. <code>noida luxury flats</code>.</td></tr>
+</tbody></table></div>
+<p>"(close variant)" in the search terms report means Google matched what it considers the same meaning: plurals, misspellings, word order, synonyms (flat and apartment), sometimes dropped words. <b>Most of our junk comes in through phrase-match close variants.</b></p>
+
+<h3 id="negatives">5. Negative keywords: "never show for this"</h3>
+<p>A <b>negative</b> stops an ad when the search contains it. Negatives use the same three match types, but they are <b>strict</b>: they do not stretch to plurals, misspellings or synonyms.</p>
+<div class="tbl"><table>
+<thead><tr><th>Negative</th><th>Blocks</th><th>Does not block</th></tr></thead>
+<tbody>
+<tr><td>broad <code>-supertech</code></td><td>Any search containing <i>supertech</i></td><td><i>super tech</i> (two words)</td></tr>
+<tr><td>phrase <code>-"golf links"</code></td><td>Searches with <i>golf links</i> in that order</td><td><i>golf link</i> (singular)</td></tr>
+<tr><td>exact <code>-[godrej greater noida]</code></td><td>Only that exact search</td><td><i>godrej greater noida project</i></td></tr>
+</tbody></table></div>
+<div class="tbl"><table>
+<thead><tr><th>Where it lives</th><th>Covers</th><th>Use it for</th></tr></thead>
+<tbody>
+<tr><td><b>Ad group</b></td><td>Only that ad group</td><td>Steering searches between our own ad groups</td></tr>
+<tr><td><b>Campaign</b></td><td>Every ad group in the campaign</td><td>Junk for that project only</td></tr>
+<tr><td><b>Shared negative list</b></td><td>Every campaign it is attached to</td><td>Junk for all projects: rent, PG, jobs, address searches</td></tr>
+</tbody></table></div>
+<div class="ledger warn"><span class="tag">Danger</span>
+<p>A single common word as a campaign-wide broad negative silently kills good traffic. <code>-62</code> blocks <i>sector 62 gurgaon</i>; <code>-home</code> blocks <i>luxury home in noida</i>.</p></div>
+
+<h3 id="funnelling">6. Many ad groups and "funnelling"</h3>
+<p>Ivory non-brand has nine ad groups (Flats, Apartments, Projects, Villa, House, Home, Pent House, Property, Societies). Google treats flat, apartment, home and house as near-synonyms, so one search can be picked up by several of them. Adding ad-group negatives so each group takes only its own word is called <b>query funnelling</b>. It is a real technique, and it only works at ad-group level. Done carelessly, it blocks the group's own keywords.</p>
+<div class="ledger bad"><span class="tag">From our account</span>
+<p>Ivory sells no villas and no penthouses, yet the Villa and Pent House ad groups cost <b class="num">₹10,361</b> with <b>0 conversions</b> between 1 Oct and 6 Nov. Every click there was someone looking for a product we cannot sell them.</p></div>
+
+<h3 id="bidding">7. Bidding: what "target CPA" really does</h3>
+<ul>
+  <li><b>Conversion</b>: an action we count as success, here mostly a lead form.</li>
+  <li><b>CPA</b> (cost per acquisition) = spend ÷ conversions. ₹10,000 for 2 leads = ₹5,000 CPA.</li>
+  <li><b>Target CPA</b>: we tell Google "aim for leads at this cost". Google then bids, for each search, roughly <b>target CPA × the chance this click becomes a lead</b>.</li>
+  <li><b>Budget</b> is the most a campaign may spend per day. It only limits a campaign that actually reaches it.</li>
+  <li><b>Learning period</b>: after a big bidding change, allow about 1–2 weeks before judging it.</li>
+</ul>
+<div class="calc" role="group" aria-labelledby="calc-title">
+  <h4 id="calc-title" style="margin-top:0">Try it: what can Google afford to bid?</h4>
+  <div class="row">
+    <label for="tcpa">Target CPA (₹)<input id="tcpa" type="number" min="0" step="10" value="800"></label>
+    <label for="cvr">Conversion rate (%)<input id="cvr" type="number" min="0" max="100" step="0.1" value="7.5"></label>
+  </div>
+  <div class="out">Roughly <b id="cpc">₹60</b> per click. <span id="cmp" class="lead"></span></div>
+</div>
+<div class="ledger"><span class="tag">From our account: Ivory CTM</span>
+<p>Since 1 Oct, CTM turned about 7.5% of its clicks into Google conversions (30 of 398). At a ₹800 target that allows roughly ₹60 a click; in November it actually paid about ₹26 on average. The agency's Ivory Brand campaign pays ₹200–₹500 a click for the same <i>ivory county</i> searches, so on those searches it wins the auction over CTM. The bigger cause: after its keywords were narrowed in October, the searches CTM could even enter fell from about <b class="num">15,800</b> a day to about <b class="num">190</b>. Raising its budget would change nothing.</p></div>
+
+<h3 id="conversions">8. Conversions in Google vs leads in the CRM</h3>
+<p>Google counts a conversion when the form is submitted. The CRM later marks the lead Qualified, Disqualified or Pending. A search that "converted" can still be a bad lead, so a converting search term is not automatically a keeper. Check lead quality before deciding.</p>
+</section>
+
+<!-- ===================== PART 2 ===================== -->
+<section class="part">
+<div class="partlabel">Part 2 · Reading the reports</div>
+<h2>What each number in the reports means</h2>
+<p class="lead">The search terms report says what people typed. These reports say whether our ads could show, what Google thinks of them, and who else was there. Examples are from 1 Oct – 6 Nov 2026.</p>
+
+<h3 id="impression-share">9. Impression share: did we show up?</h3>
+<p>Think of a stall at a mela. <b>Impression share</b> is the share of people walking past who actually saw your stall: the times you showed ÷ the times you were eligible.</p>
+<div class="isbar" role="img" aria-label="Example: 37% shown, 24% lost to budget, 39% lost to rank">
+  <div style="width:37%;background:#1f8a57">37% shown</div><div style="width:24%;background:#c9822b">24% budget</div><div style="width:39%;background:#b3362b">39% rank</div>
+</div>
+<div class="legend"><span><i style="background:#1f8a57"></i>Showed</span><span><i style="background:#c9822b"></i>Missed: budget ran out</span><span><i style="background:#b3362b"></i>Missed: lost the auction</span></div>
+<p style="margin-top:10px">That bar is Ivory Non-brand. The missed share is split by reason, and the reason decides what you do:</p>
+<div class="tbl"><table>
+<thead><tr><th>Column</th><th>Plain meaning</th><th>What fixes it</th></tr></thead>
+<tbody>
+<tr><td><b>Search lost IS (budget)</b></td><td>The day's money ran out before the searches stopped</td><td>More budget, or the same budget on fewer, better searches</td></tr>
+<tr><td><b>Search lost IS (rank)</b></td><td>Lost the auction: bid × quality too low</td><td>Better ads and landing page (cheaper) or a higher bid (dearer)</td></tr>
+<tr><td><b>Top IS / Abs. top IS</b></td><td>How often we were in the top block / the very first ad</td><td>On brand searches we want first place almost every time</td></tr>
+</tbody></table></div>
+<div class="ledger"><span class="tag">Rule of thumb</span>
+<p>Never approve a budget increase for a campaign whose "lost IS (budget)" is near zero. The extra money will not be spent.</p></div>
+<h4>A number you can work out yourself</h4>
+<p>Impressions ÷ impression share = how many searches a campaign could have entered. If that falls, the campaign has fewer searches to compete for, and no budget or bid fixes it. Google hides extreme values as "&lt; 10%" or "&gt; 90%"; leave those out rather than guess.</p>
+
+<h3 id="quality-score">10. Quality Score: what Google thinks of each keyword</h3>
+<p>Every keyword gets a score from <b>1 to 10</b>, built from three ratings (Above average, Average, Below average):</p>
+<ol>
+  <li><b>Expected click-through rate</b>: will people click this ad for this search?</li>
+  <li><b>Ad relevance</b>: do the ad's words match the keyword? "3 BHK in Sector 115, Noida" in the ad for <i>3 bhk flats sector 115</i> is relevant.</li>
+  <li><b>Landing page experience</b>: is the page fast, on topic and easy to use on a phone?</li>
+</ol>
+<p>Better quality means a lower price for the same position.</p>
+<div class="ledger bad"><span class="tag">From our account</span>
+<p><b class="num">57%</b> of keyword spend (<span class="num">₹8.14 L</span> of <span class="num">₹14.32 L</span>) went to keywords whose landing page Google rates <b>below average</b>. <span class="num">₹2.31 L</span> went to keywords with Quality Score 1, the lowest possible. The landing page is the part County controls directly, which makes it the cheapest lever in the account.</p></div>
+<h4>Conversions vs "All conv."</h4>
+<p><b>Conversions</b> are the main goal (lead form or call). <b>All conv.</b> adds secondary actions such as page views. Ivory Non-brand shows 20 conversions but 6,741 all conversions, so something other than leads is counted there. Confirm what before anyone quotes it.</p>
+<h4>Bid strategies in one line each</h4>
+<div class="tbl"><table>
+<thead><tr><th>Strategy</th><th>What you tell Google</th><th>Watch out for</th></tr></thead>
+<tbody>
+<tr><td>Maximise clicks</td><td>As many clicks as the budget allows</td><td>Cheap clicks are often junk clicks</td></tr>
+<tr><td>Maximise conversions</td><td>As many conversions as the budget allows</td><td>Spends the whole budget every day</td></tr>
+<tr><td>Target CPA</td><td>Conversions at about ₹X each</td><td>Too low a target makes Google stop bidding</td></tr>
+<tr><td>Target impression share</td><td>Show on X% of searches</td><td>Can pay very high CPCs (Cocoa Brand: about ₹240 a click)</td></tr>
+</tbody></table></div>
+
+<h3 id="auction-insights">11. Auction insights: who else is in the room</h3>
+<div class="tbl"><table>
+<thead><tr><th>Column</th><th>Plain meaning</th></tr></thead>
+<tbody>
+<tr><td>Impression share</td><td>How often that advertiser showed on searches we could show on</td></tr>
+<tr><td>Overlap rate</td><td>How often they showed in the same auction as us</td></tr>
+<tr><td>Position above rate</td><td>When we met, how often their ad was above ours</td></tr>
+<tr><td>Outranking share</td><td>How often we were above them, or showed when they did not</td></tr>
+</tbody></table></div>
+<p>1–6 Nov: <b>99acres</b> showed on 47% of our searches and sat above us 54% of the time we met; <b>housing.com</b> showed on 26%. Portals are a fact of property search. Ask for this report per campaign so brand and non-brand are not mixed.</p>
+
+<h3 id="status-notes">12. Status notes Google writes</h3>
+<div class="tbl"><table>
+<thead><tr><th>Note</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>Limited by budget</td><td>Lost IS (budget) is high on some days</td></tr>
+<tr><td>Bidding strategy limited</td><td>The target is holding the campaign back</td></tr>
+<tr><td>Missing enough relevant keywords</td><td>The ad group has too few keywords that get searches</td></tr>
+<tr><td>Rarely served</td><td>The keyword almost never wins an auction</td></tr>
+<tr><td>Low quality</td><td>Low Quality Score: shows rarely and pays more when it does</td></tr>
+</tbody></table></div>
+
+<h3 id="which-report">13. Which report answers which question</h3>
+<div class="tbl"><table>
+<thead><tr><th>Question</th><th>Report</th><th>How often</th></tr></thead>
+<tbody>
+<tr><td>What did people type, and should we block it?</td><td>Search terms report</td><td>Daily</td></tr>
+<tr><td>Did the agency do what the sheet says?</td><td>Change history</td><td>Daily</td></tr>
+<tr><td>Is a campaign held back by budget or by rank?</td><td>Campaign report with impression-share columns, by day</td><td>Weekly</td></tr>
+<tr><td>Which keywords are expensive because of low quality?</td><td>Keyword report with Quality Score columns</td><td>Weekly</td></tr>
+<tr><td>Who are we competing against?</td><td>Auction insights</td><td>Monthly</td></tr>
+<tr><td>Were the leads any good?</td><td>CRM (not in Google Ads)</td><td>Weekly</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ===================== PART 3 ===================== -->
+<section class="part">
+<div class="partlabel">Part 3 · The STR SOP</div>
+<h2>The daily search-terms review</h2>
+
+<h3 id="what-sop">14. What an SOP is, and why we need one</h3>
+<p>An <b>SOP (Standard Operating Procedure)</b> is a written recipe for a job that repeats. It says <b>who</b> does <b>what</b>, <b>when</b>, <b>with which inputs</b>, <b>by which rules</b>, and <b>how we check it was done</b>. It exists so that:</p>
+<ul>
+  <li>the job is done the same way every day, whoever does it;</li>
+  <li>mistakes are caught by a check, not by luck;</li>
+  <li>"why did we exclude this?" has a written answer, with a date and a person;</li>
+  <li>the agency's work is measured against an agreed standard instead of opinions.</li>
+</ul>
+<p>A good SOP is short, uses numbered steps and fixed rules wherever possible, and changes only through a version note.</p>
+<p><b>Purpose of this one:</b> stop paying for clicks from people who will not buy a County home, without cutting the people who would. <b>Scope:</b> all agency-run search campaigns for Ivory, Clove, Cocoa and Jade. Google's Ivory CTM campaign is watched, and findings go to Google's team through County.</p>
+
+<h3 id="roles">15. Who does what, and when</h3>
+<div class="tbl"><table>
+<thead><tr><th>Role</th><th>Does</th></tr></thead>
+<tbody>
+<tr><td>Agency reviewer</td><td>Downloads the report, fills the sheet, applies the changes</td></tr>
+<tr><td>Agency strategist</td><td>Owns the Add / Leave / Exclude rules; answers questions</td></tr>
+<tr><td>County QC</td><td>Checks the sheet and the account every day with the dashboard; comments in the sheet</td></tr>
+<tr><td>County approver</td><td>Approves changes to this SOP</td></tr>
+</tbody></table></div>
+<div class="tbl"><table>
+<thead><tr><th>By</th><th>Step</th><th>Who</th></tr></thead>
+<tbody>
+<tr><td class="num">11:00</td><td>Download yesterday's search terms report into a new tab named with yesterday's date</td><td>Agency</td></tr>
+<tr><td class="num">13:00</td><td>Make a call on every row and write the negative, its match type and its level</td><td>Agency</td></tr>
+<tr><td class="num">15:00</td><td>Load the three files into the dashboard; comment in the County Comments column</td><td>County</td></tr>
+<tr><td class="num">18:00</td><td>Apply all agreed calls in Google Ads</td><td>Agency</td></tr>
+<tr><td>Next morning</td><td>Dashboard "Said vs done" confirms they reached the account</td><td>County</td></tr>
+</tbody></table></div>
+<p><b>Service level (proposed):</b> every Exclude and Add is in the account within <b>1 working day</b>. So far the typical delay is 2 days, and 91 Exclude calls from 20–29 Oct never reached the account.</p>
+
+<h3 id="decision-rules">16. Decision rules for one search term</h3>
+<p>Ask in order and stop at the first answer.</p>
+<div class="rule"><span class="n">1</span><div><p><b>Wrong campaign type?</b> Brand campaign but no brand word (county, clove, cocoa, ivory, jade) → <span class="verdict v-ex">Exclude</span> the non-brand part. Non-brand or competitor campaign with our brand word → <span class="verdict v-ex">Exclude</span> here; the brand campaign should own it.</p><p class="lead" style="font-size:14.5px">Example: <code>ats pious hideaways sector 150 noida</code> in the Clove brand campaign. Clove starts at ₹8 Cr; this is another builder's buyer.</p></div></div>
+<div class="rule"><span class="n">2</span><div><p><b>Someone who lives there, not someone buying?</b> House or flat number, block, pin code, "near me", tower number → <span class="verdict v-ex">Exclude</span>.</p></div></div>
+<div class="rule"><span class="n">3</span><div><p><b>Renting or staying?</b> Rent, PG, 1 RK, studio, serviced apartment, furnished, sharing, Airbnb → <span class="verdict v-ex">Exclude</span>.</p></div></div>
+<div class="rule"><span class="n">4</span><div><p><b>Budget clearly below ours?</b> Lakhs, "under 1 crore", affordable, cheap, 1 or 2 BHK → <span class="verdict v-ex">Exclude</span>. Starting prices: Jade ₹2.71 Cr, Ivory ₹3.8 Cr, Cocoa ₹4.14 Cr, Clove ₹8 Cr.</p></div></div>
+<div class="rule"><span class="n">5</span><div><p><b>Another builder's project?</b> In a non-brand campaign → <span class="verdict v-ex">Exclude</span> the project name. In a competitor campaign → keep only if its starting price is within ours ± ₹50 lakh and its location is one we accept.</p></div></div>
+<div class="rule"><span class="n">6</span><div><p><b>Wrong area?</b> A different city or a far area for that project → <span class="verdict v-ex">Exclude</span> the area name.</p></div></div>
+<div class="rule"><span class="n">7</span><div><p><b>A real buyer search that fits the product?</b> A configuration the project has (Ivory 3/4/5 BHK, Jade 3/4/5 BHK, Cocoa 3/4 BHK), luxury, our sector or corridor, ready to move, new launch → <span class="verdict v-add">Add</span> as a phrase keyword in the right ad group. Villa and penthouse searches are never an Add for Ivory.</p></div></div>
+<div class="rule"><span class="n">8</span><div><p><b>Relevant but general, no signal?</b> <code>flats in noida</code>, <code>noida flat price</code>, Hinglish without budget or size → <span class="verdict v-leave">Leave</span>. Adding them would pull in cheap broad traffic; excluding them would cut volume.</p></div></div>
+<div class="ledger"><span class="tag">Write "Leave", never blank</span><p>A blank Status cell cannot tell "decided to leave" apart from "nobody looked".</p></div>
+
+<h3 id="writing-negatives">17. How to write the negative</h3>
+<ol>
+  <li><b>Use the smallest negative that removes the junk.</b> The project name as a phrase (<code>"skyline suites"</code>) beats one word (<code>skyline</code>).</li>
+  <li><b>Never</b> use a bare number (<code>-62</code>) or a single common property word (home, house, flat, project, society, sector, city, new, greater) as a campaign-wide broad negative.</li>
+  <li><b>Pick the level on purpose and write it in the sheet:</b> ad group, campaign or shared list.</li>
+  <li><b>Junk that fits every project goes in the shared list.</b> <i>hans residency</i> was excluded in Ivory, then cost ₹830 in Clove.</li>
+  <li><b>Check before applying</b> that the negative does not block one of our own keywords or an Add in the same sheet.</li>
+  <li><b>Do not add the same block twice.</b> On 5 Nov, 160 of 162 exact negatives were already covered by negatives added the evening before.</li>
+</ol>
+
+<h3 id="qc-checklist">18. Daily QC checklist (about 15 minutes)</h3>
+<ol>
+  <li><b>Load data:</b> the search terms report, the change history and the agency sheet. The agency tab's spend matches Google's report for that day.</li>
+  <li><b>Command centre:</b> read "Decisions waiting", red first.</li>
+  <li><b>Daily STR review:</b> filter "Flagged, no call" and comment on each row.</li>
+  <li><b>Said vs done:</b> chase every call older than the service level.</li>
+  <li><b>Account risks:</b> brand leakage both ways, keywords blocked by our own negatives, risky negatives.</li>
+  <li><b>Weekly:</b> campaign and keyword reports, then Campaign health and Keyword quality.</li>
+</ol>
+<div class="tbl"><table>
+<thead><tr><th>Measured every week</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Calls applied on time</td><td>Calls in the account within 1 working day ÷ all calls</td></tr>
+<tr><td>Overdue backlog</td><td>Calls past 3 days and not in the account, with the spend on them</td></tr>
+<tr><td>Brand leakage</td><td>Brand-campaign spend on searches with no brand word, and brand searches in non-brand</td></tr>
+<tr><td>Self-blocks</td><td>Our keywords blocked by our own negatives</td></tr>
+<tr><td>Junk share</td><td>Spend on rows called Exclude ÷ all reviewed spend</td></tr>
+</tbody></table></div>
+
+<h3 id="glossary">Glossary</h3>
+<div class="tbl"><table>
+<tbody>
+<tr><td><b>Impression</b></td><td>The ad was shown once</td></tr>
+<tr><td><b>CTR</b></td><td>Clicks ÷ impressions</td></tr>
+<tr><td><b>CPC</b></td><td>Cost of one click</td></tr>
+<tr><td><b>CPA</b></td><td>Spend ÷ conversions</td></tr>
+<tr><td><b>tCPA</b></td><td>Target CPA, the cost-per-lead goal we give Google</td></tr>
+<tr><td><b>Ad Rank</b></td><td>Bid combined with ad and page quality; decides who shows</td></tr>
+<tr><td><b>Impression share</b></td><td>Share of eligible searches where we showed</td></tr>
+<tr><td><b>Quality Score</b></td><td>Google's 1–10 rating of a keyword's ad and landing page</td></tr>
+<tr><td><b>Close variant</b></td><td>A search Google treats as the same meaning as a keyword</td></tr>
+<tr><td><b>Negative</b></td><td>A word or phrase that stops ads for searches containing it</td></tr>
+<tr><td><b>Shared negative list</b></td><td>One set of negatives attached to several campaigns</td></tr>
+<tr><td><b>STR</b></td><td>Search terms report</td></tr>
+<tr><td><b>SOP</b></td><td>Standard Operating Procedure: the written routine for a repeating job</td></tr>
+</tbody></table></div>
+
+<footer>SOP version 0.2 (draft), 6 Nov 2026. Figures are from County Group's Google Ads account, 1 Oct – 6 Nov 2026. For internal use.</footer>
+</section>
+</main>
+</div>
+
+<script>
+(function () {
+  var t = document.getElementById("tcpa"), c = document.getElementById("cvr"), o = document.getElementById("cpc"), m = document.getElementById("cmp");
+  function upd() {
+    var v = (parseFloat(t.value) || 0) * (parseFloat(c.value) || 0) / 100;
+    o.textContent = "₹" + Math.round(v).toLocaleString("en-IN");
+    m.textContent = v < 200 ? "Our Ivory Brand campaign pays about ₹200–₹500 a click on the same brand searches, so this bid loses to it." : "That can compete with our Ivory Brand campaign's ₹200–₹500 clicks.";
+  }
+  t.addEventListener("input", upd); c.addEventListener("input", upd); upd();
+})();
+</script>

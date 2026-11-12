@@ -1,0 +1,31 @@
+# Private data never goes into git as plain files. It travels only inside the encrypted
+# vault/*.qcvault files (scripts/vault.mjs), which only the owner's passphrase opens.
+# Patterns start with / so they match the top-level folders only (dashboard/app/data/ is code).
+/data/
+/inbox/
+/history/
+/backups/
+/.vault-restore-*/
+vault/*.tmp
+*.csv
+*.sqlite
+*.xlsx
+.env
+.env.*
+.clasp.json
+.clasprc.json
+
+# Installed packages and builds (recreated by the start files)
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+*.tsbuildinfo
+dashboard/.next/
+dashboard/next-env.d.ts
+dev/preview.html
+
+# Operating-system clutter
+.DS_Store
+Thumbs.db
+desktop.ini

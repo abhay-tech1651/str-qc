@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Dark mode follows the .dark class that next-themes puts on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. A calm neutral base with one green accent (County), semantic colours for good / warning / bad,
+ * and one colour per project that stays the same on every page and chart.
+ */
+:root {
+  --background: oklch(0.985 0.002 160);
+  --foreground: oklch(0.21 0.015 160);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.015 160);
+  --muted: oklch(0.965 0.004 160);
+  --muted-foreground: oklch(0.52 0.012 160);
+  --border: oklch(0.915 0.006 160);
+  --input: oklch(0.9 0.008 160);
+  --ring: oklch(0.58 0.12 158);
+  --primary: oklch(0.47 0.11 158);
+  --primary-foreground: oklch(0.985 0.01 158);
+  --accent: oklch(0.955 0.025 158);
+  --accent-foreground: oklch(0.32 0.08 158);
+  --good: oklch(0.55 0.13 152);
+  --good-soft: oklch(0.95 0.04 152);
+  --warn: oklch(0.66 0.14 70);
+  --warn-soft: oklch(0.96 0.05 80);
+  --bad: oklch(0.58 0.18 27);
+  --bad-soft: oklch(0.96 0.03 25);
+  --info: oklch(0.55 0.12 250);
+  --info-soft: oklch(0.96 0.025 250);
+  --p-ivory: oklch(0.55 0.11 245);
+  --p-clove: oklch(0.52 0.13 320);
+  --p-cocoa: oklch(0.58 0.11 55);
+  --p-jade: oklch(0.58 0.1 175);
+  --p-other: oklch(0.6 0.01 160);
+  --chart-grid: oklch(0.93 0.004 160);
+  --shown: oklch(0.6 0.13 152);
+  --lost-budget: oklch(0.74 0.14 75);
+  --lost-rank: oklch(0.62 0.17 27);
+  --sidebar: oklch(0.975 0.004 160);
+}
+
+.dark {
+  --background: oklch(0.16 0.008 160);
+  --foreground: oklch(0.95 0.006 160);
+  --card: oklch(0.2 0.01 160);
+  --card-foreground: oklch(0.95 0.006 160);
+  --muted: oklch(0.24 0.01 160);
+  --muted-foreground: oklch(0.7 0.012 160);
+  --border: oklch(0.29 0.012 160);
+  --input: oklch(0.32 0.012 160);
+  --ring: oklch(0.7 0.12 158);
+  --primary: oklch(0.72 0.14 158);
+  --primary-foreground: oklch(0.18 0.02 158);
+  --accent: oklch(0.27 0.04 158);
+  --accent-foreground: oklch(0.88 0.08 158);
+  --good: oklch(0.75 0.14 152);
+  --good-soft: oklch(0.29 0.05 152);
+  --warn: oklch(0.8 0.13 80);
+  --warn-soft: oklch(0.3 0.05 75);
+  --bad: oklch(0.72 0.16 25);
+  --bad-soft: oklch(0.3 0.06 25);
+  --info: oklch(0.75 0.11 250);
+  --info-soft: oklch(0.28 0.04 250);
+  --p-ivory: oklch(0.72 0.11 245);
+  --p-clove: oklch(0.72 0.12 320);
+  --p-cocoa: oklch(0.75 0.11 60);
+  --p-jade: oklch(0.76 0.1 175);
+  --p-other: oklch(0.65 0.01 160);
+  --chart-grid: oklch(0.27 0.01 160);
+  --shown: oklch(0.72 0.14 152);
+  --lost-budget: oklch(0.8 0.13 80);
+  --lost-rank: oklch(0.7 0.16 27);
+  --sidebar: oklch(0.18 0.009 160);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-sidebar: var(--sidebar);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html { -webkit-text-size-adjust: 100%; }
+  body { background: var(--background); color: var(--foreground); font-feature-settings: "ss01", "cv11"; }
+  ::selection { background: var(--accent); }
+}
+
+/* Numbers line up in tables and stat cards. */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Print: the overview prints as a clean report (Export PDF). */
+@media print {
+  aside, header.app-topbar, .no-print { display: none !important; }
+  main { padding: 0 !important; }
+  .print-break { break-before: page; }
+  body { background: white; }
+}

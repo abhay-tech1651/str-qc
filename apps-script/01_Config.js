@@ -1,0 +1,179 @@
+/**
+ * Default project facts and rules. Generated from config/projects.toml (python -m strqc.fixtures, then dev/gen-config).
+ * In the live spreadsheet the Projects tab overrides the project facts, so prices can change without touching code.
+ */
+var DEFAULT_CONFIG = {
+  "brand_words": [
+    "county",
+    "clove",
+    "cocoa",
+    "ivory",
+    "jade",
+    "countygroup"
+  ],
+  "runners": {
+    "ROI": [
+      "ROI_",
+      "ROI-"
+    ],
+    "Google": [
+      "SearchCTM"
+    ]
+  },
+  "projects": [
+    {
+      "id": "ivory",
+      "name": "Ivory County",
+      "match": [
+        "ivory"
+      ],
+      "location": "Sector 115, Noida",
+      "product": "3 and 4 BHK; 5 BHK in Ivory Gold. No villas or penthouses.",
+      "starting_price_cr": 3.8,
+      "price_note": "From Rs 3.8 Cr (Abhay confirmed 6 Nov 2026; prices rise over time). Ivory Gold (5 BHK) from Rs 9.56 Cr (website).",
+      "sizes_sqft": "3 BHK 2,034-2,304; 4 BHK 2,727-3,195 super area (website)",
+      "rera": "UPRERAPRM206951; phases UPRERAPRJ256314, UPRERAPRJ115902, UPRERAPRJ507062",
+      "villas_or_penthouses": "no",
+      "website": "https://www.countygroup.in/ivorycounty/"
+    },
+    {
+      "id": "clove",
+      "name": "Clove County",
+      "match": [
+        "clove"
+      ],
+      "location": "Noida",
+      "product": "",
+      "starting_price_cr": 8.0,
+      "price_note": "From Rs 8 Cr (Abhay, 6 Nov 2026). Only the starting price is needed."
+    },
+    {
+      "id": "cocoa",
+      "name": "Cocoa County",
+      "match": [
+        "cocoa"
+      ],
+      "location": "Sector 88A, Gurugram",
+      "product": "3 and 4 BHK; Cocoa Gold",
+      "notes": "844 units in phases 2-4 on 24 acres (website).",
+      "starting_price_cr": 4.14,
+      "max_price_cr": 8.0,
+      "price_note": "Rs 4.14 Cr to Rs 8 Cr (Abhay, 6 Nov 2026).",
+      "sizes_sqft": "3 BHK 2,592; 4 BHK 2,997-4,671 super area (website)",
+      "website": "https://www.countygroup.in/cocoacounty/"
+    },
+    {
+      "id": "jade",
+      "name": "Jade County",
+      "match": [
+        "jade"
+      ],
+      "location": "Wave City, NH-24, Ghaziabad",
+      "product": "3 and 4 BHK; 5 BHK in Jade Gold",
+      "notes": "Jade Gold 5 BHK from Rs 6.37 Cr (website); confirmed by Abhay 6 Nov 2026.",
+      "starting_price_cr": 2.71,
+      "price_note": "3 BHK from Rs 2.71 Cr; 4 BHK Rs 3.33 Cr (Tower C) and Rs 4.08 Cr (Tower B) (website campaign page)",
+      "sizes_sqft": "3 BHK 2,358; 4 BHK 2,898-3,555; 5 BHK 5,094 super area (website)",
+      "website": "https://www.countygroup.in/jadecounty/"
+    }
+  ],
+  "flags": {
+    "address": [
+      "\\b2013\\d\\d\\b",
+      "\\b1220\\d\\d\\b",
+      "\\b[a-z]{1,2} ?\\d{1,4} sector\\b",
+      "\\bsector \\d+[a-z]? [a-z] block\\b",
+      "\\b[a-h] block\\b",
+      "\\b(gh|plot|flat|house) ?no\\b",
+      "\\bnear me\\b"
+    ],
+    "budget": [
+      "\\blakh",
+      "\\blakhs\\b",
+      "\\bunder (?:1|2|one|two) ?(?:cr|crore)\\b",
+      "\\baffordable\\b",
+      "\\bcheap\\b",
+      "\\blow price\\b",
+      "\\bbudget\\b",
+      "\\b1 ?bhk\\b",
+      "\\b2 ?bhk\\b"
+    ],
+    "rent_or_stay": [
+      "\\brent\\b",
+      "\\brental\\b",
+      "\\bpg\\b",
+      "\\b1 ?rk\\b",
+      "\\bstudio\\b",
+      "\\bservice[d]? apartment",
+      "\\bfurnished\\b",
+      "\\bsharing\\b",
+      "\\bairbnb\\b",
+      "\\bstay[sz]?\\b",
+      "\\bhostel\\b",
+      "\\blease\\b"
+    ],
+    "jobs_or_other": [
+      "\\bjobs?\\b",
+      "\\bvacanc",
+      "\\bsalary\\b",
+      "\\bplot\\b",
+      "\\bland\\b",
+      "\\bscheme\\b",
+      "\\bauthority\\b",
+      "\\bshop\\b",
+      "\\boffice\\b",
+      "\\bcommercial\\b"
+    ],
+    "risky_negative_words": [
+      "home",
+      "homes",
+      "house",
+      "flat",
+      "flats",
+      "apartment",
+      "apartments",
+      "project",
+      "projects",
+      "new",
+      "greater",
+      "noida",
+      "gurgaon",
+      "gurugram",
+      "villa",
+      "villas",
+      "society",
+      "societies",
+      "luxury",
+      "price",
+      "sale",
+      "buy",
+      "best",
+      "launch",
+      "sector",
+      "city",
+      "ready",
+      "bhk",
+      "property",
+      "estate",
+      "real",
+      "tower",
+      "floor",
+      "road",
+      "park",
+      "green",
+      "delhi",
+      "west",
+      "east",
+      "developers",
+      "village",
+      "residency",
+      "homes"
+    ]
+  },
+  "grace_days": 3
+};
+
+/** A fresh copy of the defaults (callers may change it). */
+function defaultConfig() {
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+}

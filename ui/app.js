@@ -1,0 +1,916 @@
+/* County Search QC: the briefing page. Reads the model built by Apps Script (getModel) and renders it as plain sentences,
+   ledger cards, small tables and hand-drawn SVG charts.
+   Security rule: search terms, comments, keywords, campaign names and change-history text are typed by outsiders.
+   Every string from the model or the review rows passes through esc() exactly once on its way into HTML; numbers go
+   through our own formatters (which only ever emit digits, separators, ₹, %, L and –). Inside fixText() the H`` tag
+   escapes every interpolated value, so a finding's title and detail are always safe HTML. */
+(function () {
+  'use strict';
+
+  const S = { model: null, review: null, me: { email: '', canUpload: false }, view: 'briefing', more: Object.create(null), terms: { day: '', project: 'all', show: 'all', q: '' } };
+  const PROJ_COLOR = { ivory: 'var(--ivory)', clove: 'var(--clove)', cocoa: 'var(--cocoa)', jade: 'var(--jade)', other: 'var(--other)' };
+  const MAX_FILES = 20, MAX_BYTES = 10 * 1024 * 1024;
+  const $ = (sel, el) => (el || document).querySelector(sel);
+
+  // ------------------------------------------------------------------ server
+  function call(fn, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+    });
+  }
+
+  // ------------------------------------------------------------------ safe values
+  const hasOwn = (o, k) => o !== null && o !== undefined && Object.prototype.hasOwnProperty.call(o, k);
+  /** Own-property lookup: a hostile key such as "__proto__" or "constructor" never reaches Object.prototype. */
+  const own = (o, k) => (hasOwn(o, k) ? o[k] : undefined);
+  const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+  const obj = (x) => (isObj(x) ? x : {});
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const str = (v) => (v === null || v === undefined ? '' : String(v));
+  /** A finite number, or null. Strings, NaN and Infinity are treated as missing. */
+  const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+  const num0 = (v) => num(v) || 0;
+  const errText = (e) => {
+    const t = e && typeof e === 'object' && e.message ? e.message : e;
+    return t === null || t === undefined || t === '' ? 'unknown error' : String(t);
+  };
+
+  // ------------------------------------------------------------------ escaping
+  const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const esc = (s) => str(s).replace(/[&<>"']/g, (c) => ESC[c]);
+  const UNESC = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+  /** Our own HTML (built only with esc) back to plain text: drop tags, then undo exactly the entities esc() makes. */
+  const htmlToText = (h) => str(h).replace(/<[^>]*>/g, '').replace(/&(amp|lt|gt|quot|#39);/g, (m, k) => UNESC[k]);
+  function Raw(s) { this.s = str(s); }
+  /** Mark a string that is already safe HTML (built by esc / H) so H does not escape it a second time. */
+  const raw = (s) => new Raw(s);
+  /** Tagged template: every ${value} is escaped unless it is raw(). */
+  const H = (strs, ...vals) => strs[0] + vals.map((v, i) => (v instanceof Raw ? v.s : esc(v)) + strs[i + 1]).join('');
+
+  // ------------------------------------------------------------------ formatting (output: digits and fixed symbols only)
+  function group(intStr) {
+    if (intStr.length <= 3) return intStr;
+    const head = intStr.slice(0, -3), tail = intStr.slice(-3);
+    return head.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + tail;
+  }
+  const inr = (v) => { v = num(v); return v === null ? '–' : (v < 0 && Math.round(-v) ? '-' : '') + '₹' + group(String(Math.round(Math.abs(v)))); };
+  const lakh = (v) => { v = num(v); return v === null ? '–' : Math.abs(v) >= 100000 ? '₹' + (v / 100000).toFixed(2) + ' L' : inr(v); };
+  const n0 = (v) => { v = num(v); return v === null ? '–' : (v < 0 && Math.round(-v) ? '-' : '') + group(String(Math.round(Math.abs(v)))); };
+  const n1 = (v) => {
+    v = num(v);
+    if (v === null) return '–';
+    const r = Math.round(Math.abs(v) * 10), i = Math.floor(r / 10), d = r % 10;
+    return (v < 0 && r ? '-' : '') + group(String(i)) + (d ? '.' + d : '');
+  };
+  const pct = (v, d) => { v = num(v); return v === null ? '–' : v.toFixed(num(d) || 0) + '%'; };
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  /** [y, m, d] for a 'YYYY-MM-DD…' string, or null for anything else. */
+  const parts = (d) => {
+    const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof d === 'string' ? d : '');
+    if (!mt) return null;
+    const y = +mt[1], m = +mt[2], dd = +mt[3];
+    return m >= 1 && m <= 12 && dd >= 1 && dd <= 31 ? [y, m, dd] : null;
+  };
+  const dshort = (d) => { const p = parts(d); return p ? p[2] + ' ' + MON[p[1] - 1] : ''; };
+  const drange = (a, b) => { const x = dshort(a), y = dshort(b); if (!x && !y) return '–'; return !x || !y || x === y ? x || y : x + ' – ' + y; };
+  const dlong = (d) => { const p = parts(d); if (!p) return ''; const w = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); return DOW[w] + ', ' + p[2] + ' ' + MONTH[p[1] - 1] + ' ' + p[0]; };
+  const plural = (n, one, many) => (n === 1 ? one : many || one + 's');
+  function delta(cur, prev) {
+    cur = num(cur); prev = num(prev);
+    if (!prev || cur === null) return { text: '', cls: 'flat' };
+    const p = (100 * (cur - prev)) / prev;
+    if (Math.abs(p) < 5) return { text: 'about the same as the 7 days before', cls: 'flat', p };
+    return { text: (p > 0 ? 'up ' : 'down ') + Math.round(Math.abs(p)) + '% on the 7 days before', cls: p > 0 ? 'up' : 'down', p };
+  }
+
+  // ------------------------------------------------------------------ lookups
+  let PROJ = Object.create(null), CAMP = Object.create(null);
+  const pname = (id) => (PROJ[id] ? str(PROJ[id].name).replace(' County', '') : 'Other');
+  const clabel = (id) => (CAMP[id] && CAMP[id].label ? str(CAMP[id].label) : str(id));
+  const pcolor = (id) => own(PROJ_COLOR, id) || PROJ_COLOR.other;
+  const ptag = (id) => `<span class="tag"><i style="background:${pcolor(id)}"></i>${esc(pname(id))}</span>`;
+  function priceLabel(p) {
+    if (!p) return '';
+    const lo = num(p.starting_price_cr), hi = num(p.max_price_cr);
+    if (lo !== null && hi !== null) return '₹' + lo + '–' + hi + ' Cr';
+    return lo ? 'from ₹' + lo + ' Cr' : '';
+  }
+
+  // ------------------------------------------------------------------ findings: plain words for every fix type
+  const OWNER_TITLE = { Agency: 'Tell the agency', County: 'County decides', 'Google CTM team': "Ask Google's CTM team" };
+  const SEV = { high: ['bad', 'Act this week'], medium: ['warn', 'Next agency review'], low: ['mute', 'Decide'] };
+  const RANK = { high: 0, medium: 1, low: 2 };
+  const sevKey = (s) => (hasOwn(SEV, s) ? s : 'low');
+  const MONEY_KIND = { wasted: 'spent on unwanted searches', affected: 'spend affected', misrouted: 'paid by the wrong campaign' };
+  const WHY_RISKY = { bare_number: 'a bare number', common_word: 'one common word', common_pair: 'two common words' };
+  const TYPE_LABEL = {
+    overdue_excludes: 'Junk searches marked Exclude, never blocked',
+    brand_no_word: 'Brand campaign paid for searches not about us',
+    product_mismatch: 'Ads on villa and penthouse keywords (not sold)',
+    landing_pages: 'Keyword spend landing on below-average pages',
+    ctm_pool: 'Google CTM can barely spend its budget',
+    brand_cpa: 'Brand campaign costs far more per conversion than non-brand',
+    self_competition: 'Same keyword live in two of our campaigns',
+    zero_conv: 'Campaign with spend and no Google conversion',
+    brand_leak: 'Our own brand searches paid by non-brand campaigns',
+    blocked_keywords: 'Our keywords blocked by our own negatives',
+    conversion_gap: '“All conversions” far above real leads',
+    no_negative_written: 'Exclude rows with no negative written',
+    overdue_adds: 'Add calls never added as keywords',
+    risky_negatives: 'Risky campaign-wide negatives',
+    held_by_budget: 'Missing searches because the budget runs out',
+  };
+  const typeLabel = (t) => own(TYPE_LABEL, t) || str(t) || 'Other finding';
+  function fixValue(f) {
+    const p = obj(f.params), nc = arr(p.campaigns).length;
+    if (f.type === 'landing_pages') return num(p.share) === null ? '' : n1(p.share) + '%';
+    if (f.type === 'brand_cpa') return inr(p.cpa) + ' vs ' + inr(p.nonbrand_cpa);
+    if (f.type === 'ctm_pool') return inr(p.spend_per_day) + ' / ' + inr(p.budget) + ' a day';
+    if (f.type === 'held_by_budget') return pct(p.lost_budget_pct) + ' missed';
+    if (f.type === 'conversion_gap') return nc + ' ' + plural(nc, 'campaign');
+    if (num(f.money) && num(p.count)) return n0(p.count) + ' · ' + lakh(f.money);
+    if (num(f.money)) return lakh(f.money);
+    return num(p.count) !== null ? n0(p.count) : '';
+  }
+  /** One row per kind of problem: which projects have it, how big, and the worst severity. */
+  function fixGroups(list) {
+    const order = [], by = Object.create(null);
+    list.forEach((f) => { const t = str(f.type); if (!by[t]) { by[t] = []; order.push(t); } by[t].push(f); });
+    return order.map((t) => {
+      const fs = by[t];
+      const sev = fs.reduce((a, f) => (RANK[sevKey(f.severity)] < RANK[a] ? sevKey(f.severity) : a), 'low');
+      const money = fs.reduce((a, f) => a + num0(f.money), 0);
+      return { type: t, severity: sev, money, items: fs };
+    }).sort((a, b) => RANK[a.severity] - RANK[b.severity] || b.money - a.money);
+  }
+  function fixTable(list) {
+    const rows = fixGroups(list).map((g) => {
+      const sev = SEV[g.severity];
+      const chips = g.items.map((f) => `<a class="pill" href="#p:${esc(f.project)}" title="${esc(htmlToText(fixText(f).title))}"><i style="background:${pcolor(f.project)}"></i>${esc(pname(f.project))} <span class="num">${esc(fixValue(f))}</span></a>`).join('');
+      return `<tr><td><span class="chip ${sev[0]}">${esc(sev[1])}</span></td><td><b>${esc(typeLabel(g.type))}</b><div class="pills">${chips}</div></td><td class="n">${g.money ? lakh(g.money) : ''}</td></tr>`;
+    }).join('');
+    return `<div class="tbl"><table class="fixes"><thead><tr><th>When</th><th>Problem, and where</th><th class="n">Money</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  /** Plain words for one finding. title, detail and todo are safe HTML (every value escaped by H). */
+  function fixText(f) {
+    const P = pname(f.project), p = obj(f.params), cnt = num(p.count);
+    const days = drange(p.first_day, p.last_day);
+    const codes = (xs) => raw(arr(xs).map((x) => '<code>' + esc(x) + '</code>').join(', ') || '–');
+    const ncamps = arr(p.campaigns).length;
+    switch (f.type) {
+      case 'overdue_excludes':
+        return { title: H`${n0(p.count)} ${P} ${plural(cnt, 'search', 'searches')} the agency marked Exclude were never blocked`,
+          detail: H`Sheet days ${days}. They cost ${inr(f.money)} on the days they were reviewed, and nothing stops them coming back.`,
+          todo: 'Send the list to the agency and ask for the negatives to be applied today, or a reason why not.', link: ['agency', 'See the list'] };
+      case 'overdue_adds':
+        return { title: H`${n0(p.count)} good ${P} ${plural(cnt, 'search', 'searches')} marked Add were never added as keywords`,
+          detail: H`Sheet days ${days}. The agency's own sheet says these searches should be keywords.`,
+          todo: 'Ask the agency to add them, or to change the sheet.', link: ['agency', 'See the list'] };
+      case 'no_negative_written':
+        return { title: H`${n0(p.count)} ${P} ${plural(cnt, 'row says', 'rows say')} Exclude but no negative is written`,
+          detail: 'Without the exact negative and its match type, whoever applies it has to guess, and a guessed broad negative can block good searches.',
+          todo: 'Ask the agency to fill the Negative column for these rows.', link: ['agency', 'See the rows'] };
+      case 'brand_no_word':
+        return { title: H`${P} brand campaign paid ${inr(f.money)} for ${n0(p.count)} ${plural(cnt, 'search', 'searches')} that do not mention County or ${P}`,
+          detail: H`Example: “${p.example}” cost ${inr(p.example_cost)}. Brand campaigns bid high because brand searchers already want us; this money went to people looking for something else.`,
+          todo: 'Make brand + location keywords exact match, and add the other project names as negatives in the brand campaign.', link: ['p:' + str(f.project), 'See the searches'] };
+      case 'brand_leak':
+        return { title: H`${n0(p.count)} ${plural(cnt, 'search', 'searches')} for our own name ${plural(cnt, 'was', 'were')} paid by ${P} non-brand or competitor campaigns`,
+          detail: H`Example: “${p.example}”. These people already know us; the brand campaign should take them, at brand prices and in brand numbers.`,
+          todo: H`Add “county” and “${P.toLowerCase()}” as negatives in those campaigns.`, link: ['p:' + str(f.project), 'See the searches'] };
+      case 'blocked_keywords':
+        return { title: H`${n0(p.count)} ${P} ${plural(cnt, 'keyword', 'keywords')} can never show: our own negatives block them`,
+          detail: H`Example: the keyword “${p.example}” is blocked by the negative <code>${p.example_negative}</code>. A negative always wins over a keyword.`,
+          todo: 'Remove those negatives or move them to the ad groups where they belong.', link: ['agency', 'See all'] };
+      case 'risky_negatives':
+        return { title: H`${n0(p.count)} campaign-wide ${P} negatives are a bare number or common words`,
+          detail: H`For example ${codes(p.examples)}. One of these can switch off hundreds of good searches (a bare <code>-62</code> also blocks “₹62 lakh” and “sector 62”).`,
+          todo: 'Replace each with the exact phrase that was junk (the SOP, section 7).', link: ['agency', 'See all'] };
+      case 'product_mismatch':
+        return { title: H`${P} ads run on villa and penthouse keywords, and ${P} sells neither`,
+          detail: H`${n0(p.count)} keywords in ${arr(p.ad_groups).map(str).join(', ') || '–'} cost ${inr(f.money)} with ${n1(p.conv)} Google conversions.`,
+          todo: 'Pause the Villa and Pent House ad groups and the villa keywords in Competitor, and add villa and penthouse as negatives.', link: ['p:' + str(f.project), 'See the keywords'] };
+      case 'landing_pages':
+        return { title: H`${n1(p.share)}% of ${P} keyword spend lands on pages Google rates below average`,
+          detail: H`${lakh(f.money)} of ${lakh(p.total)} in the keyword report period. A below-average landing page lowers Quality Score, which raises the price of every click.`,
+          todo: 'Test the campaign pages on a phone (PageSpeed Insights) and check that each ad group lands on a page about its keywords.', link: ['p:' + str(f.project), 'See keyword quality'] };
+      case 'self_competition':
+        return { title: H`${n0(p.count)} ${P} ${plural(cnt, 'keyword runs', 'keywords run')} in two of our campaigns at once`,
+          detail: H`Biggest: “${p.example}” in ${arr(p.example_campaigns).map(clabel).join(' and ') || '–'}. Google lets only one of our ads into each auction, so the two campaigns compete and their numbers stop being comparable.`,
+          todo: 'Decide which campaign owns each keyword and remove it from the other.', link: ['p:' + str(f.project), 'See the keywords'] };
+      case 'conversion_gap':
+        return { title: H`Google counts far more “all conversions” than leads in ${ncamps} ${P} ${plural(ncamps, 'campaign')}`,
+          detail: raw(arr(p.campaigns).map((c) => H`${obj(c).label}: ${n1(obj(c).conv)} conversions vs ${n0(obj(c).all_conv)} all conversions`).join('; ') + '.').s,
+          todo: 'Check which conversion actions are counted as secondary before anyone quotes “all conversions”.', link: ['p:' + str(f.project), 'See the campaigns'] };
+      case 'zero_conv':
+        return { title: H`${p.label} spent ${inr(f.money)} in ${n0(p.days)} days with no Google conversion`,
+          detail: 'Google Ads recorded no lead from this campaign in the whole period.',
+          todo: 'Look at its search terms and decide whether it should keep running.', link: ['p:' + str(f.project), 'See the campaign'] };
+      case 'brand_cpa':
+        return { title: H`${p.label} costs ${inr(p.cpa)} per Google conversion; ${P} non-brand costs ${inr(p.nonbrand_cpa)}`,
+          detail: H`Brand searchers usually convert best, yet this campaign pays ${inr(p.cpc)} a click (bidding: ${p.bid_strategy || '–'}) for ${n1(p.conv)} conversions since the start of the period.`,
+          todo: 'Check two things: whether brand searchers call or visit instead of filling the form (Google does not count that), and whether the bidding pays more than needed.', link: ['p:' + str(f.project), 'See the campaign'] };
+      case 'held_by_budget':
+        return { title: H`${p.label} missed ${pct(p.lost_budget_pct)} of its searches in the last 7 days because the budget ran out`,
+          detail: H`Budget ${inr(p.budget)} a day. More budget buys more of the same searches; it does not make them better.`,
+          todo: 'If its leads are good in the CRM, consider more budget. If not, leave it.', link: ['p:' + str(f.project), 'See the campaign'] };
+      case 'ctm_pool':
+        return { title: H`${P} Google CTM spends ${inr(p.spend_per_day)} a day of its ${inr(p.budget)} budget`,
+          detail: H`The searches it is allowed to enter fell from about ${n0(p.before)} a day (${drange(p.before_from, p.before_to)}) to ${n0(p.now)} (${drange(p.now_from, p.now_to)}), down ${n1(p.drop_pct)}%, after its keywords were narrowed. The budget is not what holds it back.`,
+          todo: 'Agree with Google’s team and the agency who owns Ivory brand searches, and widen CTM’s keywords (phrase match, or search term matching with strong negatives).', link: ['p:' + str(f.project), 'See the CTM case'] };
+      default:
+        return { title: esc(typeLabel(f.type)), detail: '', todo: '' };
+    }
+  }
+
+  function ledger(f, opts) {
+    opts = opts || {};
+    const t = fixText(f), sk = sevKey(f.severity), sev = SEV[sk];
+    const link = t.link ? `<a href="#${esc(t.link[0])}">${esc(t.link[1])} →</a>` : '';
+    return `<article class="ledger ${sk}">
+      <div class="top">
+        <div class="meta"><span class="chip ${sev[0]}">${esc(sev[1])}</span>${opts.noProject ? '' : ptag(f.project)}<span>${esc(f.owner)}</span></div>
+      </div>
+      <div class="top"><div class="title">${t.title}</div>
+        ${num(f.money) ? `<div class="amount"><b>${lakh(f.money)}</b><span>${esc(own(MONEY_KIND, f.money_kind) || '')}</span></div>` : ''}</div>
+      <div class="detail">${t.detail}</div>
+      <div class="todo"><b>What to do:</b> ${t.todo}</div>
+      <div class="evidence">${link}</div>
+    </article>`;
+  }
+
+  // ------------------------------------------------------------------ charts (plain SVG)
+  function niceMax(v) {
+    if (!(v > 0) || !isFinite(v)) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  }
+  function widthOf(id, fallback) {
+    const el = document.getElementById(id);
+    return Math.max(300, Math.min(1100, (el && el.clientWidth) || fallback || 760));
+  }
+  const f1 = (v) => (Math.round(v * 10) / 10).toString();
+
+  /** Stacked daily bars. rows: [{day, ...keys}], keys: [{key, color, label}] (colors are our own constants). */
+  function stackedBars(id, rows, keys, o) {
+    o = o || {};
+    rows = arr(rows).filter(isObj);
+    const W = widthOf(id, 760) - 32, H = o.height || 190, L = 52, R = 6, T = 8, B = 24;
+    const val = (r, k) => Math.max(0, num0(own(r, k)));
+    const tot = rows.map((r) => keys.reduce((s, k) => s + val(r, k.key), 0));
+    const max = niceMax(Math.max(1, ...tot));
+    const bw = (W - L - R) / Math.max(1, rows.length), gap = Math.min(3, bw * 0.25);
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    const yf = o.yFmt || ((v) => (v >= 100000 ? '₹' + (v / 100000).toFixed(1) + 'L' : v >= 1000 ? '₹' + Math.round(v / 1000) + 'k' : '₹' + v));
+    let g = '';
+    for (let i = 0; i <= 4; i++) {
+      const v = (max * i) / 4, yy = f1(y(v));
+      g += `<line class="gridline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/><text class="axis" x="${L - 6}" y="${f1(+yy + 4)}" text-anchor="end">${esc(yf(v))}</text>`;
+    }
+    const every = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor((W - L) / 64))));
+    rows.forEach((r, i) => {
+      let acc = 0;
+      const x = L + i * bw + gap / 2, w = Math.max(1, bw - gap);
+      const tip = [dshort(r.day)].concat(keys.filter((k) => val(r, k.key)).map((k) => `${k.label}: ${(o.tipFmt || inr)(val(r, k.key))}`)).join('\n');
+      let col = '';
+      keys.forEach((k) => {
+        const v = val(r, k.key);
+        if (!v) return;
+        const y1 = y(acc + v), y0 = y(acc);
+        col += `<rect x="${f1(x)}" y="${f1(y1)}" width="${f1(w)}" height="${f1(Math.max(0.5, y0 - y1))}" fill="${k.color}"/>`;
+        acc += v;
+      });
+      g += `<g><title>${esc(tip)}</title>${col}<rect x="${f1(x)}" y="${T}" width="${f1(w)}" height="${H - T - B}" fill="transparent"/></g>`;
+      if (i % every === 0) g += `<text class="axis" x="${f1(x + w / 2)}" y="${H - 6}" text-anchor="middle">${esc(dshort(r.day))}</text>`;
+    });
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria || 'chart')}">${g}</svg>`;
+  }
+
+  function spark(values, color) {
+    values = arr(values).map((v) => Math.max(0, num0(v)));
+    if (!values.length) return '';
+    const W = 200, H = 34, max = Math.max(1, ...values);
+    const step = W / Math.max(1, values.length - 1);
+    const pts = values.map((v, i) => [i * step, H - 3 - (H - 6) * (v / max)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const last = pts[pts.length - 1];
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${line} L${W} ${H} L0 ${H} Z" fill="${color}" opacity=".12"/><path d="${line}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.6" fill="${color}"/></svg>`;
+  }
+
+  /** Width for a style attribute: always a plain number between 0 and 100. */
+  const w100 = (v) => f1(Math.max(0, Math.min(100, num0(v))));
+  function isBar(s) {
+    s = isObj(s) ? s : null;
+    if (!s || num(s.is_pct) === null) {
+      if (s && num(s.lost_rank_pct) !== null) return `<div class="isbar-wrap"><div class="isbar"><i style="width:${w100(s.lost_rank_pct)}%;background:var(--lost-rank);margin-left:auto"></i></div><span>shown under 10% · ${pct(s.lost_rank_pct)} lost to rank</span></div>`;
+      return '<span class="muted small">no data</span>';
+    }
+    const a = num0(s.is_pct), b = num0(s.lost_budget_pct), c = num0(s.lost_rank_pct);
+    return `<div class="isbar-wrap" title="Shown ${pct(a)} · missed for budget ${pct(b)} · missed for rank ${pct(c)}"><div class="isbar"><i style="width:${w100(a)}%;background:var(--shown)"></i><i style="width:${w100(b)}%;background:var(--lost-budget)"></i><i style="width:${w100(c)}%;background:var(--lost-rank)"></i></div><span>shown ${pct(a)} · budget ${pct(b)} · rank ${pct(c)}</span></div>`;
+  }
+
+  function logChart(id, rows, events) {
+    rows = arr(rows).filter(isObj);
+    const W = widthOf(id, 760) - 32, H = 230, L = 52, R = 8, T = 10, B = 24;
+    const vals = rows.flatMap((r) => [num0(r.eligible), num0(r.impr)]).filter((v) => v > 0);
+    const maxL = Math.ceil(Math.log10(Math.max(10, ...vals)));
+    const y = (v) => T + (H - T - B) * (1 - Math.log10(Math.max(1, v)) / maxL);
+    const bw = (W - L - R) / Math.max(1, rows.length);
+    let g = '';
+    for (let e = 0; e <= maxL; e++) {
+      const v = Math.pow(10, e), yy = f1(y(v));
+      g += `<line class="gridline" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/><text class="axis" x="${L - 6}" y="${f1(+yy + 4)}" text-anchor="end">${v >= 1000 ? v / 1000 + 'k' : v}</text>`;
+    }
+    const dayIdx = new Map();
+    rows.forEach((r, i) => { dayIdx.set(r.day, i); });
+    arr(events).filter((e) => isObj(e) && e.setting && dayIdx.has(e.day)).forEach((e) => {
+      const x = f1(L + dayIdx.get(e.day) * bw);
+      g += `<line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="var(--warn)" stroke-dasharray="4 3"><title>${esc(dshort(e.day) + ': ' + arr(e.lines).map(str).join('; '))}</title></line>`;
+    });
+    rows.forEach((r, i) => {
+      const x = L + i * bw + 1, w = Math.max(1, bw - 2), im = num0(r.impr);
+      if (im > 0) g += `<rect x="${f1(x)}" y="${f1(y(im))}" width="${f1(w)}" height="${f1(H - B - y(im))}" fill="var(--shown)" opacity=".8"><title>${esc(dshort(r.day) + ': shown ' + n0(im) + ' times')}</title></rect>`;
+    });
+    const pts = rows.map((r, i) => (num0(r.eligible) > 0 ? [L + i * bw + bw / 2, y(num0(r.eligible)), r] : null)).filter(Boolean);
+    if (pts.length) {
+      g += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')}" fill="none" stroke="var(--ivory)" stroke-width="2"/>`;
+      pts.forEach((p) => { g += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.4" fill="var(--ivory)"><title>${esc(dshort(p[2].day) + ': could enter about ' + n0(p[2].eligible) + ' searches')}</title></circle>`; });
+    }
+    const every = Math.max(1, Math.ceil(rows.length / Math.max(2, Math.floor((W - L) / 64))));
+    rows.forEach((r, i) => { if (i % every === 0) g += `<text class="axis" x="${f1(L + i * bw + bw / 2)}" y="${H - 6}" text-anchor="middle">${esc(dshort(r.day))}</text>`; });
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CTM searches it could enter, by day, log scale">${g}</svg>`;
+  }
+
+  // ------------------------------------------------------------------ tables
+  /** cols: [{key, label, num, cls, fmt}]. fmt(value, row) must return safe HTML; without fmt the value is escaped. */
+  function table(id, rows, cols, opts) {
+    opts = opts || {};
+    rows = arr(rows).filter(isObj);
+    const limit = opts.limit || 8, open = !!S.more[id], shown = open ? rows : rows.slice(0, limit);
+    if (!rows.length) return `<div class="tbl"><div class="empty">${esc(opts.empty || 'Nothing here.')}</div></div>`;
+    const head = cols.map((c) => `<th class="${c.num ? 'n' : ''}">${esc(c.label)}</th>`).join('');
+    const body = shown.map((r) => '<tr>' + cols.map((c) => {
+      const v = c.fmt ? c.fmt(own(r, c.key), r) : esc(own(r, c.key));
+      return `<td class="${c.num ? 'n' : ''}${c.cls ? ' ' + c.cls : ''}">${v === undefined || v === null ? '' : v}</td>`;
+    }).join('') + '</tr>').join('');
+    const foot = rows.length > limit ? `<div class="tbl-foot"><span>${open ? 'All' : 'First ' + limit + ' of'} ${n0(rows.length)} rows</span><button class="linkish" data-more="${esc(id)}">${open ? 'Show fewer' : 'Show all ' + n0(rows.length)}</button></div>` : '';
+    return `<div class="tbl"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${foot}`;
+  }
+  const term = (v) => `<span class="term">${esc(v)}</span>`;
+  const code = (v) => `<code>${esc(v)}</code>`;
+  const negCell = (v) => (v ? code(v) : '<span class="muted">none</span>');
+  const C = {
+    day: { key: 'day', label: 'Day', fmt: (v) => esc(dshort(v)) },
+    term: { key: 'term', label: 'Search', fmt: term, cls: 'wrapcell' },
+    camp: { key: 'campaign', label: 'Campaign', fmt: (v) => esc(clabel(v)) },
+    adg: { key: 'ad_group', label: 'Ad group' },
+    cost: { key: 'cost', label: 'Cost', num: true, fmt: (v) => inr(v) },
+    proj: { key: 'project', label: 'Project', fmt: (v) => ptag(v) },
+  };
+
+  // ------------------------------------------------------------------ section helpers
+  /** label is text (escaped here); aside and body are safe HTML built by the caller. */
+  const part = (label, aside, body) => `<section class="part"><div class="partlabel"><span>${esc(label)}</span>${aside ? `<span class="aside">${aside}</span>` : ''}</div>${body}</section>`;
+  /** k is text (escaped here); v and s are safe HTML built by the caller; tone is one of our class names. */
+  const stat = (k, v, s, tone) => `<div class="stat ${tone || ''}"><span class="k">${esc(k)}</span><span class="v">${v}</span><span class="s">${s || ''}</span></div>`;
+  const verdictChip = (c) => {
+    const s = obj(c.last7);
+    switch (c.verdict) {
+      case 'budget': return `<span class="chip warn">Held back by budget</span>`;
+      case 'rank': return `<span class="chip bad">Losing auctions</span>`;
+      case 'underspending': return `<span class="chip mute">Uses ${pct(s.budget_use)} of budget</span>`;
+      case 'brand_gap': return `<span class="chip warn">Missing brand searches</span>`;
+      case 'idle': return `<span class="chip mute">Not spending</span>`;
+      default: return `<span class="chip good">Healthy</span>`;
+    }
+  };
+  const share = (part_, whole) => (num(whole) ? pct((100 * num0(part_)) / whole) : '');
+
+  // ------------------------------------------------------------------ views
+  function viewBriefing() {
+    const m = S.model, a = m.account, w = m.windows;
+    const hasCamp = m.campaigns.length > 0;
+    const d1 = delta(a.last7.cost, a.prev7.cost), d2 = delta(a.last7.conv, a.prev7.conv);
+    const top = m.fixes.filter((f) => f.severity !== 'low').slice(0, 5);
+    const minute = top.map((f) => `<li><a class="plain" href="#p:${esc(f.project)}">${fixText(f).title}</a>${num(f.money) ? ` <span class="money muted">${lakh(f.money)}</span>` : ''}</li>`).join('');
+    const cards = m.projects.map((p) => {
+      const ps = m.project_stats[p.id], l7 = ps.last7, pv = ps.prev7;
+      const fx = m.fixes.filter((f) => f.project === p.id && f.severity !== 'low');
+      const highs = fx.filter((f) => f.severity === 'high').length;
+      const chip = highs ? `<span class="chip bad">${highs} urgent</span>` : fx.length ? `<span class="chip warn">${fx.length} to fix</span>` : '<span class="chip good">On track</span>';
+      const dd = delta(l7.cost, pv.cost);
+      const issue = fx[0] ? fixText(fx[0]).title : 'Nothing urgent in the data.';
+      return `<article class="pcard" style="--pc:${pcolor(p.id)}">
+        <header><div><div class="name">${esc(p.name)}</div><div class="facts">${esc(p.location)}${priceLabel(p) ? ' · ' + esc(priceLabel(p)) : ''}</div></div>${chip}</header>
+        ${!hasCamp ? '<div class="sub muted">Spend and conversions appear when the Google Ads feed or a campaign report is loaded.</div>' : `<div><div class="big">${lakh(l7.cost)}</div><div class="sub">spent ${esc(drange(w.last7.from, w.last7.to))} · <span class="delta ${dd.cls}" title="compared with the 7 days before">${esc(dd.p === undefined ? '' : Math.abs(dd.p) < 5 ? 'steady' : (dd.p > 0 ? '▲ ' : '▼ ') + Math.round(Math.abs(dd.p)) + '%')}</span></div></div>
+        <div class="sub">${n1(l7.conv)} Google ${plural(l7.conv, 'conversion')} · ${num(l7.cpa) ? inr(l7.cpa) + ' each' : 'no conversion'}</div>
+        ${spark(ps.daily.map((x) => obj(x).cost), pcolor(p.id))}`}
+        <div class="issue">${issue}</div>
+        <a class="go" href="#p:${esc(p.id)}">Open ${esc(pname(p.id))} →</a>
+      </article>`;
+    }).join('');
+    const owners = ['Agency', 'County', 'Google CTM team'].map((o) => {
+      const list = m.fixes.filter((f) => f.owner === o);
+      if (!list.length) return '';
+      const intro = { Agency: 'Send these to ROI. Each one comes from the agency sheet and the account’s own change history.', County: 'Decisions for County: landing pages, conversion tracking, which campaign owns which searches.', 'Google CTM team': 'For Google’s team that runs the Ivory CTM campaign.' }[o];
+      return part(OWNER_TITLE[o], `${list.length} ${plural(list.length, 'item')} · click a project for the details`, `<p class="section-intro">${esc(intro)}</p>${fixTable(list)}`);
+    }).join('');
+    const ag = m.agency, e = ag.excludes;
+    const card = m.projects.map((p) => Object.assign({}, ag.by_project[p.id], { project: p.id }));
+    const keys = m.projects.map((p) => ({ key: p.id, color: pcolor(p.id), label: pname(p.id) }));
+    const cardAside = !ag.changes_from ? 'change history not loaded yet: nothing can be checked'
+      : num(e.applied_pct) === null ? 'no Exclude calls judged yet'
+      : `${pct(e.applied_pct)} of Exclude calls applied${num(e.median_lag) !== null ? `, usually ${n1(e.median_lag)} ${plural(e.median_lag, 'day')} late` : ''}`;
+    return `
+      <div class="kicker">Google Ads · daily briefing</div>
+      <h1>${esc(dlong(m.as_of) || 'Daily briefing')}</h1>
+      ${!hasCamp ? `<p class="lede">The agency sheet is loaded, so the search-term checks below are live. Campaign spend, conversions and keyword quality appear once the Google Ads feed runs (every morning at 7:00) or a campaign report is uploaded on <a href="#upload">Upload and refresh</a>.</p>` : `<p class="lede">In the last 7 days (${esc(drange(w.last7.from, w.last7.to))}) search ads cost <b>${lakh(a.last7.cost)}</b>${d1.text ? ', ' + esc(d1.text) : ''}, and brought <b>${n1(a.last7.conv)}</b> Google conversions at <b>${inr(a.last7.cpa)}</b> each (${esc(d2.text || 'no change')}). Since ${esc(dshort(w.since.from) || 'the start')}: ${lakh(a.since.cost)} for ${n1(a.since.conv)} conversions.</p>`}
+      ${minute ? `<div class="minute"><h3>In one minute</h3><ol>${minute}</ol></div>` : ''}
+      ${part('Projects', hasCamp ? 'last 7 days, with spend since ' + esc(dshort(w.since.from) || 'the start') : 'campaign data not loaded yet', `<div class="projects">${cards}</div>`)}
+      ${owners}
+      ${part('Agency report card', cardAside, `
+        <p class="section-intro">Every Add and Exclude in the agency sheet, checked against the Google Ads change history. The agency gets ${n0(ag.grace_days)} days before a call counts as late.</p>
+        ${table('reportcard', card, [
+          { key: 'project', label: 'Project', fmt: (v) => ptag(v) },
+          { key: 'excludes', label: 'Exclude calls', num: true, fmt: n0 },
+          { key: 'applied_pct', label: 'Applied', num: true, fmt: (v) => pct(v) },
+          { key: 'overdue', label: 'Never applied', num: true, fmt: n0 },
+          { key: 'overdue_cost', label: 'Spent on those', num: true, fmt: inr },
+          { key: 'adds_overdue', label: 'Adds not added', num: true, fmt: n0 },
+        ], { limit: 6 })}
+        <p class="small muted">Details: <a href="#agency">Said vs done</a>.</p>`)}
+      ${!hasCamp ? '' : part('Where the money went', 'search campaigns, by day', `<div class="figure" id="fig-daily"><div class="legend">${keys.map((k) => `<span><i style="background:${k.color}"></i>${esc(k.label)}</span>`).join('')}</div>${stackedBars('fig-daily', a.daily, keys, { aria: 'Daily spend by project' })}<div class="cap"><b>How to read it:</b> each bar is one day’s search spend, split by project. A sudden step usually follows a change someone made (a budget, a bid strategy, a batch of keywords): check the change history before blaming the market.</div></div>`)}
+      <footer class="foot">Data: campaigns ${esc(drange(m.data.campaign_days.from, m.data.campaign_days.complete_through))} (today is left out until its data is complete) · search terms ${esc(drange(m.data.search_terms.from, m.data.search_terms.to))} · agency sheet ${esc(drange(m.data.agency_sheet.from, m.data.agency_sheet.to))} · change history ${esc(drange(m.data.changes.from, m.data.changes.to))}. “Google conversions” are counted by Google Ads, not qualified leads from the CRM.</footer>`;
+  }
+
+  function fixRow(f) {
+    const t = fixText(f), sev = SEV[sevKey(f.severity)];
+    return `<details class="fixrow"><summary><span class="chip ${sev[0]}">${esc(sev[1])}</span><span class="t">${t.title}</span><span class="money">${num(f.money) ? lakh(f.money) : ''}</span></summary>
+        <div class="body"><div class="detail">${t.detail}</div><div class="todo"><b>What to do:</b> ${t.todo}</div><div class="small muted">${esc(f.owner)}</div></div></details>`;
+  }
+
+  function viewProject(pid) {
+    const m = S.model, p = PROJ[pid];
+    const ps = m.project_stats[pid], w = m.windows, l7 = ps.last7, pv = ps.prev7, since = ps.since;
+    const camps = m.campaigns.filter((c) => c.project === pid);
+    const fx = m.fixes.filter((f) => f.project === pid);
+    const d1 = delta(l7.cost, pv.cost);
+    const kw = m.keywords && m.keywords.by_project[pid];
+    const rk = m.risks.by_project[pid];
+    const ag = m.agency.by_project[pid];
+    const latest = m.latest_day && m.latest_day.by_project[pid];
+    const sinceDay = dshort(w.since.from) || 'the start';
+    let html = `<div class="kicker">Project</div><h1>${esc(p.name)}</h1>
+      <p class="lede">${esc(p.location)}${p.product ? ' · ' + esc(p.product) : ''}${priceLabel(p) ? ' · ' + esc(priceLabel(p)) : ''}</p>
+      <div class="stats">
+        ${stat('Spent, last 7 days', lakh(l7.cost), esc(drange(w.last7.from, w.last7.to) + (d1.text ? ' · ' + d1.text : '')))}
+        ${stat('Google conversions, last 7 days', n1(l7.conv), num(l7.cpa) ? esc(inr(l7.cpa) + ' each') : 'none')}
+        ${stat('Spent since ' + sinceDay, lakh(since.cost), esc(n1(since.conv) + ' conversions · ' + (num(since.cpa) ? inr(since.cpa) + ' each' : 'none')))}
+        ${stat('Share of account spend', pct(ps.share_of_spend), 'since ' + esc(sinceDay))}
+      </div>`;
+    const urgent = fx.filter((f) => f.severity === 'high'), rest = fx.filter((f) => f.severity !== 'high');
+    html += part('What needs attention', `${urgent.length} urgent · ${rest.length} to fix`, (urgent.length ? `<div class="ledger-list">${urgent.map((f) => ledger(f, { noProject: true })).join('')}</div>` : '') +
+      (rest.length ? `<div class="fixrows">${rest.map(fixRow).join('')}</div>` : '') + (fx.length ? '' : '<p class="muted">Nothing flagged for this project.</p>'));
+    html += part('Campaigns', 'last 7 days unless marked', `
+      <p class="section-intro">“Can it show?” splits every search the campaign could have appeared on: <span class="tag"><i style="background:var(--shown)"></i>shown</span> <span class="tag"><i style="background:var(--lost-budget)"></i>missed because the budget ran out</span> <span class="tag"><i style="background:var(--lost-rank)"></i>missed because it lost the auction</span>. More budget only fixes orange.</p>
+      ${table('camps-' + pid, camps, [
+        { key: 'label', label: 'Campaign', fmt: (v, r) => `<b>${esc(v)}</b><div class="small muted">${esc(r.bid_strategy)}</div>` },
+        { key: 'verdict', label: 'Status', fmt: (v, r) => verdictChip(r) },
+        { key: 'last7', label: 'Can it show?', fmt: (v) => isBar(v) },
+        { key: 'budget_now', label: 'Budget / day', num: true, fmt: inr },
+        { key: 'last7', label: 'Spent / day', num: true, fmt: (v) => inr(obj(v).cost_per_day) },
+        { key: 'since', label: 'Spent since ' + sinceDay, num: true, fmt: (v) => lakh(obj(v).cost) },
+        { key: 'since', label: 'Conv.', num: true, fmt: (v, r) => n1(obj(v).conv) + (r.conv_gap && num(obj(v).conv) !== null ? ' *' : '') },
+        { key: 'since', label: 'Per conv.', num: true, fmt: (v) => (num(obj(v).cpa) ? inr(obj(v).cpa) : '–') },
+      ], { limit: 10, empty: 'No campaigns for this project in the data.' })}
+      ${camps.some((c) => c.conv_gap) ? '<p class="small muted">* Google also counts many “all conversions” here (secondary actions such as page views); only the conversions column is leads.</p>' : ''}
+      <div class="figure" id="fig-p-${esc(pid)}">${stackedBars('fig-p-' + pid, ps.daily.map((d) => ({ day: obj(d).day, v: obj(d).cost })), [{ key: 'v', color: pcolor(pid), label: pname(pid) }], { height: 150, aria: 'Daily spend' })}<div class="cap">Daily search spend for ${esc(p.name)} since ${esc(sinceDay)}.</div></div>`);
+    const bn = m.risks.brand_no_word.filter((r) => isObj(r) && r.project === pid), bl = m.risks.brand_leak.filter((r) => isObj(r) && r.project === pid);
+    const ld = m.latest_day ? dshort(m.latest_day.day) : '';
+    html += part('Search terms', latest && ld ? `latest day reviewed: ${esc(ld)}` : '', `
+      <div class="stats">
+        ${stat('Spend on searches' + (latest && ld ? ', ' + ld : ''), latest ? inr(latest.cost) : '–', latest ? n0(latest.rows) + ' searches' : '')}
+        ${stat('Marked Exclude by the agency', latest ? inr(latest.exclude_cost) : '–', 'that day')}
+        ${stat('Brand budget on non-brand searches', inr(rk.brand_no_word_cost), n0(rk.brand_no_word_rows) + ' searches since ' + esc(dshort(m.data.search_terms.from) || 'the start'), num(rk.brand_no_word_cost) ? 'bad' : '')}
+        ${stat('Our brand bought by other campaigns', inr(rk.brand_leak_cost), n0(rk.brand_leak_rows) + ' searches', num(rk.brand_leak_cost) ? 'warn' : '')}
+      </div>
+      ${bn.length ? `<h3 style="margin-top:16px">Brand campaign, searches with no brand word</h3>${table('bn-' + pid, bn, [C.day, C.term, C.camp, { key: 'keyword', label: 'Matched keyword' }, { key: 'match_type', label: 'Match' }, C.cost])}` : ''}
+      ${bl.length ? `<h3 style="margin-top:16px">Brand searches paid by non-brand or competitor campaigns</h3>${table('bl-' + pid, bl, [C.day, C.term, C.camp, C.cost])}` : ''}
+      <p class="small"><a href="#terms" data-project="${esc(pid)}">Review every search for ${esc(pname(pid))} →</a></p>`);
+    if (kw) {
+      const mine = (xs) => xs.filter((r) => isObj(r) && r.project === pid);
+      const mm = mine(m.keywords.product_mismatch), nc = mine(m.keywords.no_conv), dup = mine(m.keywords.duplicates);
+      const lpShare = num(kw.cost) ? num0(kw.below_lp_cost) / kw.cost : 0;
+      html += part('Keyword quality', `Google’s report ${esc(drange(m.keywords.from, m.keywords.to))}`, `
+        <div class="stats">
+          ${stat('Keyword spend', lakh(kw.cost), n0(kw.enabled) + ' live keywords')}
+          ${stat('On below-average landing pages', lakh(kw.below_lp_cost), num(kw.cost) ? share(kw.below_lp_cost, kw.cost) + ' of keyword spend' : '', lpShare >= 0.5 ? 'bad' : lpShare >= 0.3 ? 'warn' : '')}
+          ${stat('On Quality Score 1–3', lakh(kw.qs13_cost), 'Google’s lowest ratings')}
+          ${stat('Live but not eligible', n0(kw.not_eligible), n0(kw.limited) + ' more limited')}
+        </div>
+        ${mm.length ? `<h3 style="margin-top:16px">Keywords for a product ${esc(pname(pid))} does not sell</h3>${table('mm-' + pid, mm, [{ key: 'keyword', label: 'Keyword', fmt: term }, C.camp, C.adg, C.cost, { key: 'conv', label: 'Conv.', num: true, fmt: n1 }])}` : ''}
+        ${nc.length ? `<h3 style="margin-top:16px">Keywords with spend and no Google conversion</h3>${table('nc-' + pid, nc, [{ key: 'keyword', label: 'Keyword', fmt: term }, { key: 'match_type', label: 'Match' }, C.camp, C.cost, { key: 'quality_score', label: 'QS', num: true, fmt: n0 }, { key: 'landing_page', label: 'Landing page', fmt: (v) => esc(v || 'not rated') }])}` : ''}
+        ${dup.length ? `<h3 style="margin-top:16px">Same keyword in two of our campaigns</h3>${table('dup-' + pid, dup, [{ key: 'keyword', label: 'Keyword', fmt: term }, { key: 'campaigns', label: 'Campaigns', fmt: (v) => esc(arr(v).map(clabel).join(' + ')) }, C.cost])}` : ''}`);
+    }
+    const od = m.agency.overdue_excludes.filter((r) => isObj(r) && r.project === pid);
+    html += part('Agency follow-through', num(ag.judged) ? `${pct(ag.applied_pct)} of ${n0(ag.judged)} Exclude calls applied` : '', `
+      ${table('od-' + pid, od, [C.day, C.term, C.camp, C.cost, { key: 'neg_term', label: 'Negative written', fmt: negCell }, { key: 'county_comment', label: 'County comment' }], { empty: 'Every Exclude call for this project reached the account.' })}`);
+    if (m.ctm && m.ctm.project === pid) html += ctmSection();
+    return html;
+  }
+
+  function ctmSection() {
+    const c = S.model.ctm, camp = S.model.campaigns.find((x) => x.id === c.campaign);
+    const per = c.periods.map((p) => Object.assign({}, p, { period: drange(p.start, p.end) }));
+    const tl = c.events.map((e) => `<div class="tl"><div class="when">${esc(dshort(e.day))}</div><div class="rail2 ${e.setting ? '' : 'neg'}"></div><div class="what">${e.lines.map((l) => esc(l)).join('<br>')}<div class="who">${esc(e.who)}</div></div></div>`).join('');
+    return part('The CTM case', 'run by Google’s team', `
+      <p class="section-intro">Why the Google-run CTM campaign stopped spending. The blue line estimates how many searches it was allowed to enter each day (impressions ÷ impression share); bars are the times it showed; dashed lines are days its settings or keywords changed.</p>
+      <div class="figure" id="fig-ctm"><div class="legend"><span><i style="background:var(--ivory)"></i>Searches it could enter (estimate)</span><span><i style="background:var(--shown)"></i>Times it showed</span><span><i style="background:var(--warn)"></i>A settings change</span></div>${logChart('fig-ctm', camp ? camp.series : [], c.events)}<div class="cap"><b>Log scale:</b> each grid line is ten times the one below. If the blue line falls, the campaign has fewer searches to compete for and no budget can fix that.</div></div>
+      ${table('ctm-per', per, [
+        { key: 'period', label: 'Period' },
+        { key: 'change', label: 'What changed at the start', fmt: (v) => esc(arr(v).map(str).join('; ') || '–'), cls: 'wrapcell' },
+        { key: 'eligible_per_day', label: 'Searches it could enter / day', num: true, fmt: n0 },
+        { key: 'impr_per_day', label: 'Shown / day', num: true, fmt: n0 },
+        { key: 'cost_per_day', label: 'Spend / day', num: true, fmt: inr },
+        { key: 'conv', label: 'Conv.', num: true, fmt: n1 },
+      ], { limit: 10 })}
+      ${tl ? `<details class="more"><summary>Every change to the campaign, with who made it</summary><div class="timeline">${tl}</div></details>` : ''}`);
+  }
+
+  function viewAgency() {
+    const m = S.model, ag = m.agency, e = ag.excludes, ad = ag.adds;
+    const keys = [{ key: 'applied', color: 'var(--shown)', label: 'Applied' }, { key: 'applied_elsewhere', color: 'var(--lost-budget)', label: 'Applied in another ad group' }, { key: 'waiting', color: 'var(--other)', label: 'Waiting (within ' + n0(ag.grace_days) + ' days)' }, { key: 'overdue', color: 'var(--lost-rank)', label: 'Never applied' }, { key: 'unchecked', color: 'var(--line)', label: 'Not checked (no change history for that day)' }];
+    const R = m.risks;
+    const unchecked = num0(e.unchecked) + num0(ad.unchecked);
+    const coverNote = !ag.changes_from
+      ? '<p class="section-intro"><b>The change history is not loaded yet</b>, so no call can be checked. It arrives every morning with the Google Ads feed, or upload a Change history report on <a href="#upload">Upload and refresh</a>.</p>'
+      : unchecked ? `<p class="section-intro">${n0(unchecked)} ${plural(unchecked, 'call is', 'calls are')} marked “not checked”: the change history loaded starts on ${esc(dshort(ag.changes_from))}, so it cannot show what happened before then.</p>` : '';
+    const STATUS = { applied: '<span class="chip good">applied anyway</span>', applied_elsewhere: '<span class="chip warn">elsewhere</span>', waiting: '<span class="chip mute">waiting</span>', overdue: '<span class="chip bad">not applied</span>', unchecked: '<span class="chip mute">not checked</span>' };
+    return `<div class="kicker">Agency QC</div><h1>Said vs done</h1>
+      <p class="lede">Every call in the agency’s STR sheet, checked against what actually changed in Google Ads. “Applied” means a matching negative or keyword appears in the change history on or after the sheet day.</p>
+      ${coverNote}
+      <div class="stats">
+        ${stat('Exclude calls applied', pct(e.applied_pct), n0(e.judged) + ' calls past the grace period', num(e.applied_pct) === null ? '' : e.applied_pct >= 95 ? 'good' : 'warn')}
+        ${stat('Never applied', n0(e.overdue), inr(e.overdue_cost) + ' spent on those searches', num(e.overdue) ? 'bad' : 'good')}
+        ${stat('Usual delay', num(e.median_lag) === null ? '–' : n1(e.median_lag) + ' days', 'from sheet day to the account')}
+        ${stat('Add calls never added', n0(ad.overdue), 'of ' + n0(ad.total) + ' Add calls', num(ad.overdue) ? 'warn' : 'good')}
+      </div>
+      ${part('Exclude calls by sheet day', '', `<div class="figure" id="fig-ag"><div class="legend">${keys.map((k) => `<span><i style="background:${k.color}"></i>${esc(k.label)}</span>`).join('')}</div>${stackedBars('fig-ag', ag.by_day, keys, { yFmt: (v) => String(Math.round(v)), tipFmt: n0, aria: 'Exclude calls by sheet day' })}<div class="cap"><b>How to read it:</b> a red block on one day usually means a whole day’s batch was skipped. That is easy to raise with the agency because it has a date.</div></div>`)}
+      ${part('Never applied', `${n0(ag.overdue_excludes.length)} searches`, table('ag-od', ag.overdue_excludes, [C.day, C.proj, C.term, C.camp, C.cost, { key: 'neg_term', label: 'Negative written', fmt: negCell }, { key: 'county_comment', label: 'County comment' }], { limit: 12 }))}
+      ${part('Add calls never added', `${n0(ag.overdue_adds.length)} searches`, table('ag-oa', ag.overdue_adds, [C.day, C.proj, C.term, C.camp, C.adg, C.cost, { key: 'conv', label: 'Conv.', num: true, fmt: n1 }], { limit: 8 }))}
+      ${part('Exclude with no negative written', `${n0(ag.no_negative_rows.length)} rows`, table('ag-nn', ag.no_negative_rows, [C.day, C.proj, C.term, C.camp, C.cost, { key: 'status', label: 'Now', fmt: (v) => own(STATUS, v) || esc(v) }], { limit: 8 }))}
+      ${part('Campaign-wide negatives that are risky as written', `${n0(R.risky.length)} negatives`, `<p class="section-intro">The SOP never allows a bare number or a lone common word as a campaign-wide negative: it blocks far more than the junk it was meant for.</p>` + table('ag-rk', R.risky, [C.proj, C.camp, { key: 'item', label: 'Negative', fmt: code }, { key: 'why', label: 'Problem', fmt: (v) => esc(own(WHY_RISKY, v) || v) }, { key: 'added', label: 'Added', fmt: (v) => esc(dshort(v)) }, { key: 'added_by', label: 'By' }], { limit: 10 }))}
+      ${part('Our keywords blocked by our own negatives', `${n0(R.blocked.length)} pairs`, table('ag-bk', R.blocked, [C.proj, C.camp, C.adg, { key: 'keyword', label: 'Keyword', fmt: term }, { key: 'blocked_by', label: 'Blocked by', fmt: code }, { key: 'added', label: 'Negative added', fmt: (v) => esc(dshort(v)) }], { limit: 10 }))}
+      ${R.conflicts.length ? part('The sheet contradicts itself', `${n0(R.conflicts.length)} negatives`, `<p class="section-intro">A negative the sheet asks for would also block a search the same sheet says to Add.</p>` + table('ag-cf', R.conflicts, [C.day, C.proj, C.camp, { key: 'negative', label: 'Negative', fmt: code }, { key: 'written_for', label: 'Written for' }, { key: 'example', label: 'Would also block' }])) : ''}`;
+  }
+
+  const FLAG = { address: 'address search', budget: 'budget below ours', rent: 'rent or stay', not_purchase: 'not a home purchase', brand_missing: 'no brand word in a brand campaign', brand_in_nonbrand: 'our brand in a non-brand campaign' };
+  function viewTerms() {
+    const m = S.model;
+    if (!S.review) {
+      call('getReview').then((txt) => { S.review = normReview(txt); render(); }).catch(showError);
+      return '<div class="loading">Loading every search term…</div>';
+    }
+    const days = m.data.search_terms.days.slice().reverse();
+    const f = S.terms;
+    if (!f.day || days.indexOf(f.day) < 0) f.day = days[0] || '';
+    let rows = S.review.filter((r) => r.day === f.day);
+    if (f.project !== 'all') rows = rows.filter((r) => r.project === f.project);
+    const all = rows;
+    const SHOW = { all: rows, flag: rows.filter((r) => r.flags.length && !r.decision), Exclude: rows.filter((r) => r.decision === 'Exclude'), Add: rows.filter((r) => r.decision === 'Add'), none: rows.filter((r) => !r.decision) };
+    rows = own(SHOW, f.show) || rows;
+    if (f.q) { const q = f.q.toLowerCase(); rows = rows.filter((r) => str(r.term).toLowerCase().indexOf(q) >= 0 || str(r.county_comment).toLowerCase().indexOf(q) >= 0); }
+    const sum = (rs) => rs.reduce((s, r) => s + num0(r.cost), 0);
+    const dayOpts = days.length ? days.map((d) => `<option value="${esc(d)}" ${d === f.day ? 'selected' : ''}>${esc(dlong(d) || d)}</option>`).join('') : '<option value="">No days loaded</option>';
+    return `<div class="kicker">Agency QC</div><h1>Search terms</h1>
+      <p class="lede">Every search that got a click, the keyword that let it in, the agency’s call and your comment. The flag is a hint from fixed rules; a person decides.</p>
+      <div class="controls">
+        <select id="t-day" aria-label="Day">${dayOpts}</select>
+        <select id="t-proj" aria-label="Project"><option value="all">All projects</option>${m.projects.map((p) => `<option value="${esc(p.id)}" ${p.id === f.project ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+        <div class="seg" role="group" aria-label="Show">${[['all', 'All'], ['flag', 'Flagged, no call'], ['Exclude', 'Exclude'], ['Add', 'Add'], ['none', 'No call']].map(([k, l]) => `<button data-show="${k}" class="${f.show === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+        <input id="t-q" type="search" placeholder="Find a search or comment" value="${esc(f.q)}">
+      </div>
+      <p class="small muted">${n0(all.length)} searches cost ${inr(sum(all))} that day; showing ${n0(rows.length)} (${inr(sum(rows))}). Source: ${esc((all[0] && all[0].source) || '–')}.</p>
+      ${table('terms', rows, [
+        { key: 'term', label: 'Search', fmt: (v, r) => `${term(v)}<div class="small muted">${esc(clabel(r.campaign))} · ${esc(r.ad_group)}</div>`, cls: 'wrapcell' },
+        { key: 'keyword', label: 'Matched keyword', fmt: (v, r) => esc(v) + `<div class="small muted">${esc(r.match_type)}</div>` },
+        { key: 'clicks', label: 'Clicks', num: true, fmt: n0 },
+        C.cost,
+        { key: 'conv', label: 'Conv.', num: true, fmt: n1 },
+        { key: 'decision', label: 'Agency', fmt: (v, r) => (v ? `<span class="chip ${v === 'Exclude' ? 'bad' : v === 'Add' ? 'good' : 'mute'}">${esc(v)}</span>` : '<span class="muted">–</span>') + (r.neg_term ? `<div>${code(r.neg_term)}</div>` : '') },
+        { key: 'county_comment', label: 'County comment' },
+        { key: 'flags', label: 'Flag', fmt: (v) => arr(v).map((x) => `<span class="chip warn">${esc(own(FLAG, x) || x)}</span>`).join(' ') },
+      ], { limit: 40, empty: days.length ? 'No searches match.' : 'No search terms loaded yet.' })}`;
+  }
+
+  function viewCampaigns() {
+    const m = S.model;
+    return `<div class="kicker">Account</div><h1>Campaigns</h1>
+      <p class="lede">All search campaigns, grouped by project. Status is judged on the last 7 days (${esc(drange(m.windows.last7.from, m.windows.last7.to))}); spend and conversions since ${esc(dshort(m.windows.since.from) || 'the start')}.</p>
+      ${m.projects.map((p) => part(p.name, '', table('c-' + p.id, m.campaigns.filter((c) => c.project === p.id), [
+        { key: 'label', label: 'Campaign', fmt: (v, r) => `<b>${esc(v)}</b><div class="small muted">${esc(r.bid_strategy)} · ${esc(r.status_reasons || r.status)}</div>` },
+        { key: 'verdict', label: 'Status', fmt: (v, r) => verdictChip(r) },
+        { key: 'last7', label: 'Can it show?', fmt: (v) => isBar(v) },
+        { key: 'budget_now', label: 'Budget / day', num: true, fmt: inr },
+        { key: 'last7', label: 'Spent / day', num: true, fmt: (v) => inr(obj(v).cost_per_day) },
+        { key: 'since', label: 'Spend', num: true, fmt: (v) => lakh(obj(v).cost) },
+        { key: 'since', label: 'Conv.', num: true, fmt: (v) => n1(obj(v).conv) },
+        { key: 'since', label: 'Per conv.', num: true, fmt: (v) => (num(obj(v).cpa) ? inr(obj(v).cpa) : '–') },
+        { key: 'since', label: 'Avg. click', num: true, fmt: (v) => (num(obj(v).cpc) ? inr(obj(v).cpc) : '–') },
+      ], { limit: 10, empty: 'No campaigns for this project in the data.' }))).join('')}
+      ${part('How the status is decided', '', `<div class="tbl"><table><tbody>
+        <tr><td><span class="chip mute">Uses N% of budget</span></td><td>Spent under 30% of its daily budget on average.</td></tr>
+        <tr><td><span class="chip warn">Held back by budget</span></td><td>Missed 20% or more of its searches because the budget ran out.</td></tr>
+        <tr><td><span class="chip bad">Losing auctions</span></td><td>Missed 40% or more of its searches because its bid or quality was too low.</td></tr>
+        <tr><td><span class="chip warn">Missing brand searches</span></td><td>A brand campaign shown on under 80% of searches for our own name.</td></tr>
+        <tr><td><span class="chip good">Healthy</span></td><td>None of the above.</td></tr></tbody></table></div>`)}`;
+  }
+
+  function viewKeywords() {
+    const k = S.model.keywords;
+    if (!k) return '<div class="kicker">Account</div><h1>Keywords</h1><p class="lede">Upload a keyword report to see Quality Score and landing-page ratings.</p>';
+    const order = ['Above average', 'Average', 'Below average', 'Not rated'];
+    const colr = { 'Above average': 'var(--shown)', Average: 'var(--ivory)', 'Below average': 'var(--lost-rank)', 'Not rated': 'var(--other)' };
+    const bar = (o) => {
+      const v = (r) => Math.max(0, num0(own(o, r)));
+      const tot = order.reduce((s, r) => s + v(r), 0);
+      if (!tot) return '<p class="muted small">No spend with a rating in this report.</p>';
+      return `<div class="isbar" style="height:14px">${order.map((r) => (v(r) ? `<i title="${esc(r)}: ${esc(inr(v(r)))}" style="width:${w100((100 * v(r)) / tot)}%;background:${colr[r]}"></i>` : '')).join('')}</div><div class="legend" style="margin-top:8px">${order.filter((r) => v(r)).map((r) => `<span><i style="background:${colr[r]}"></i>${esc(r)} ${esc(lakh(v(r)))}</span>`).join('')}</div>`;
+    };
+    const lpShare = num(k.total_cost) ? share(k.below_lp_cost, k.total_cost) + ' of keyword spend' : '';
+    return `<div class="kicker">Account</div><h1>Keywords</h1>
+      <p class="lede">Google rates every keyword from 1 to 10 on three things: will people click, does the ad match the search, and is the landing page good. A low score makes every click cost more. Report period ${esc(drange(k.from, k.to))}.</p>
+      <div class="stats">
+        ${stat('Keyword spend', lakh(k.total_cost), '')}
+        ${stat('On below-average landing pages', lakh(k.below_lp_cost), lpShare, num(k.below_lp_cost) ? 'bad' : '')}
+        ${stat('On Quality Score 1–3', lakh(k.qs13_cost), 'Google’s lowest ratings', num(k.qs13_cost) ? 'warn' : '')}
+        ${stat('Live but not eligible', n0(num0(own(k.status_counts, 'Not eligible'))), n0(num0(own(k.status_counts, 'Limited'))) + ' more limited')}
+      </div>
+      ${part('Landing page rating, by spend', '', `<div class="figure">${bar(k.lp_cost)}<div class="cap"><b>Why it matters:</b> the landing page is the part of Quality Score County controls directly. Google looks at mobile speed, whether the page talks about what was searched, and how easy it is to use.</div></div>`)}
+      ${part('Ad relevance rating, by spend', '', `<div class="figure">${bar(k.rel_cost)}<div class="cap"><b>Why it matters:</b> “below average” means the ads in that ad group do not use the words people search. That is the agency’s copy work, and the quickest fix.</div></div>`)}
+      ${part('By project', '', table('kw-proj', S.model.projects.map((p) => Object.assign({}, k.by_project[p.id], { project: p.id })), [C.proj, { key: 'cost', label: 'Spend', num: true, fmt: lakh }, { key: 'below_lp_cost', label: 'Below-average page', num: true, fmt: (v, r) => lakh(v) + (num(r.cost) ? ' (' + share(v, r.cost) + ')' : '') }, { key: 'qs13_cost', label: 'QS 1–3', num: true, fmt: lakh }, { key: 'enabled', label: 'Live', num: true, fmt: n0 }, { key: 'not_eligible', label: 'Not eligible', num: true, fmt: n0 }], { limit: 6 }))}
+      ${part('Spend with no Google conversion', 'top 25', table('kw-nc', k.no_conv, [{ key: 'keyword', label: 'Keyword', fmt: term }, C.proj, C.camp, C.adg, C.cost, { key: 'quality_score', label: 'QS', num: true, fmt: n0 }, { key: 'landing_page', label: 'Landing page', fmt: (v) => esc(v || 'not rated') }], { limit: 10 }))}
+      ${part('Lowest Quality Score with spend', 'QS 1–3', table('kw-lq', k.low_quality, [{ key: 'keyword', label: 'Keyword', fmt: term }, C.proj, C.camp, C.cost, { key: 'quality_score', label: 'QS', num: true, fmt: n0 }, { key: 'ad_relevance', label: 'Ad relevance' }, { key: 'landing_page', label: 'Landing page' }], { limit: 10 }))}`;
+  }
+
+  function viewCompetitors() {
+    const c = S.model.competitors;
+    if (!c) return '<div class="kicker">Account</div><h1>Competitors</h1><p class="lede">Upload an Auction insights report to see who shows next to us.</p>';
+    const rows = c.rows.map((r) => Object.assign({}, r, { name: r.domain === 'You' ? 'County Group (us)' : r.domain }));
+    return `<div class="kicker">Account</div><h1>Who we meet in the auction</h1>
+      <p class="lede">Google’s auction insights for ${esc(drange(c.from, c.to))}: the other advertisers who showed on the same searches as us. Values Google hides as “under 10%” are left blank.</p>
+      ${table('comp', rows, [
+        { key: 'name', label: 'Advertiser', fmt: (v) => `<b>${esc(v)}</b>` },
+        { key: 'impression_share_raw', label: 'Showed on our searches', num: true },
+        { key: 'overlap_rate', label: 'Same auction as us', num: true, fmt: (v) => pct(v, 1) },
+        { key: 'position_above_rate', label: 'Ad above ours', num: true, fmt: (v) => pct(v, 1) },
+        { key: 'top_of_page_rate', label: 'Top of page', num: true, fmt: (v) => pct(v, 1) },
+        { key: 'outranking_share', label: 'We beat them', num: true, fmt: (v) => pct(v, 1) },
+      ], { limit: 12, empty: 'The auction insights report has no rows.' })}
+      <p class="section-intro">Portals such as 99acres and housing.com list many projects next to ours. On brand searches that is a reason for strong brand ads; on generic searches it is normal. Export this report per campaign to tell the two apart.</p>`;
+  }
+
+  function viewUpload() {
+    const m = S.model, d = (m && m.data) || {};
+    const fresh = [
+      ['Campaign report (by day)', d.campaign_days, 'Automatic from Google Ads every morning, or upload'],
+      ['Search terms', d.search_terms, 'Automatic, or upload the Search terms report'],
+      ['Change history', d.changes, 'Automatic, or upload the Change history report'],
+      ['Agency STR sheet', d.agency_sheet, 'Read directly from the agency’s Google Sheet'],
+      ['Keyword report', d.keywords, 'Automatic, or upload with Quality Score columns'],
+      ['Auction insights', d.auction, 'Upload monthly'],
+    ];
+    return `<div class="kicker">Data</div><h1>Upload and refresh</h1>
+      <p class="lede">Google Ads fills this every morning by itself. Use this page only for reports the automatic feed does not cover (auction insights, older history), or to load a report straight away.</p>
+      ${S.me.canUpload ? `<div class="drop" id="drop"><h3>Drop Google Ads CSV exports here</h3><p class="muted small">Search terms, change history, campaign (by day), keyword and auction insights reports. The type is read from inside each file. Up to ${MAX_FILES} files at a time, each under 10 MB.</p><button class="btn primary" id="pick">Choose files</button> <button class="btn" id="refresh">Refresh now</button><input type="file" id="files" accept=".csv,text/csv" multiple hidden><div id="upload-out"></div></div>`
+        : '<p class="muted">Only the owner can upload or refresh. Data updates automatically every morning.</p>'}
+      ${part('What the dashboard has', '', `<div class="tbl"><table><thead><tr><th>Report</th><th>Covers</th><th>How it arrives</th></tr></thead><tbody>${fresh.map(([n, r, how]) => `<tr><td>${esc(n)}</td><td>${isObj(r) && parts(r.from) ? esc(drange(r.from, r.to)) : '<span class="muted">not loaded</span>'}</td><td>${esc(how)}</td></tr>`).join('')}</tbody></table></div>`)}
+      ${m && m.coverage.length ? part('Does the agency sheet match Google’s report?', '', table('cov', m.coverage, [C.day, { key: 'report_rows', label: 'Rows in Google', num: true, fmt: n0 }, { key: 'sheet_rows', label: 'Rows in sheet', num: true, fmt: n0 }, { key: 'report_cost', label: 'Cost in Google', num: true, fmt: inr }, { key: 'sheet_cost', label: 'Cost in sheet', num: true, fmt: inr }, { key: 'cost_matches', label: 'Match', fmt: (v) => (v ? '<span class="chip good">yes</span>' : '<span class="chip bad">no</span>') }])) : ''}
+      <footer class="foot">Last built ${m && m.refreshed_at ? esc(str(m.refreshed_at).replace('T', ' ').slice(0, 16)) : '–'} · signed in as ${esc(S.me.email || '–')}</footer>`;
+  }
+
+  function viewHelp() {
+    return `<div class="kicker">Help</div><h1>How to read this briefing</h1>
+      <p class="lede">Every number comes from Google Ads exports, the agency’s STR sheet and the account’s change history. Nothing is typed by hand.</p>
+      ${part('The words used', '', `<div class="tbl"><table><tbody>
+        <tr><td><b>Google conversion</b></td><td>A lead form or call counted by Google Ads. Not the same as a qualified lead in the CRM.</td></tr>
+        <tr><td><b>Exclude call</b></td><td>The agency’s sheet says a search is junk and should be blocked with a negative keyword.</td></tr>
+        <tr><td><b>Applied</b></td><td>A negative that blocks that search appears in the change history on or after the sheet day.</td></tr>
+        <tr><td><b>Never applied</b></td><td>More than ${S.model && num(S.model.agency.grace_days) !== null ? n0(S.model.agency.grace_days) : '3'} days later, nothing blocks it.</td></tr>
+        <tr><td><b>Can it show?</b></td><td>Of all the searches a campaign could have appeared on: shown, missed for budget, missed for rank (bid × quality too low).</td></tr>
+        <tr><td><b>Quality Score</b></td><td>Google’s 1–10 rating of a keyword: expected clicks, ad relevance, landing page.</td></tr>
+        <tr><td><b>Act this week / Next agency review / Decide</b></td><td>Red items waste money now; amber items are set-up problems to fix; grey items are decisions with no right answer from the data alone.</td></tr>
+      </tbody></table></div>`)}
+      ${part('Money labels', '', `<div class="tbl"><table><tbody>
+        <tr><td><b>spent on unwanted searches</b></td><td>Money already paid for searches we do not want.</td></tr>
+        <tr><td><b>spend affected</b></td><td>Money exposed to the problem. Not all of it is waste.</td></tr>
+        <tr><td><b>paid by the wrong campaign</b></td><td>Wanted searches paid at another campaign’s price and counted in its numbers.</td></tr></tbody></table></div>`)}
+      <p class="small muted">The full guide to Google Ads and the STR SOP is the County Search Ads Handbook (ask Abhay for the link).</p>`;
+  }
+
+  // ------------------------------------------------------------------ frame
+  function rail() {
+    const m = S.model;
+    const v = S.view;
+    const projLinks = m ? m.projects.map((p) => {
+      const n = m.fixes.filter((f) => f.project === p.id && f.severity === 'high').length;
+      return `<a href="#p:${esc(p.id)}" class="${v === 'p:' + p.id ? 'on' : ''}"><span class="dot" style="background:${pcolor(p.id)}"></span>${esc(pname(p.id))}${n ? `<span class="count">${n}</span>` : ''}</a>`;
+    }).join('') : '';
+    const link = (id, label) => `<a href="#${id}" class="${v === id ? 'on' : ''}">${esc(label)}</a>`;
+    const d = m && m.data;
+    const upTo = (r, k) => esc(dshort(r && r[k]) || '–');
+    return `<div class="brand"><b>County Search QC</b><span>Google Ads · daily briefing</span></div>
+      ${link('briefing', 'Briefing')}
+      <div class="part">Projects</div>${projLinks}
+      <div class="part">Agency QC</div>${link('agency', 'Said vs done')}${link('terms', 'Search terms')}
+      <div class="part">Account</div>${link('campaigns', 'Campaigns')}${link('keywords', 'Keywords')}${link('competitors', 'Competitors')}
+      <div class="part">Data</div>${link('upload', 'Upload and refresh')}${link('help', 'How to read this')}
+      ${d ? `<div class="fresh">Campaigns to ${upTo(d.campaign_days, 'complete_through')}<br>Search terms to ${upTo(d.search_terms, 'to')}<br>Agency sheet to ${upTo(d.agency_sheet, 'to')}<br>Changes to ${upTo(d.changes, 'to')}</div>` : ''}`;
+  }
+
+  const VIEWS = { briefing: viewBriefing, agency: viewAgency, terms: viewTerms, campaigns: viewCampaigns, keywords: viewKeywords, competitors: viewCompetitors, upload: viewUpload, help: viewHelp };
+  /** The view named by location.hash; anything unknown (or a malformed %-escape) falls back to the briefing. */
+  function route() {
+    let h = str(location.hash).slice(1);
+    try { h = decodeURIComponent(h); } catch (e) { h = ''; }
+    if (h.indexOf('p:') === 0) return PROJ[h.slice(2)] ? h : 'briefing';
+    return hasOwn(VIEWS, h) ? h : 'briefing';
+  }
+
+  function render() {
+    const view = route();
+    S.view = view;
+    $('#rail').innerHTML = rail();
+    const main = $('#main');
+    if (!S.model) {
+      // Before the first refresh there is no model yet: the upload and help pages still work, everything else explains what to do.
+      if (S.empty && (location.hash === '#upload' || location.hash === '#help')) { main.innerHTML = location.hash === '#upload' ? viewUpload() : viewHelp(); wire(); return; }
+      main.innerHTML = S.empty
+        ? `<div class="kicker">Getting started</div><h1>No data yet</h1><p class="lede">The briefing appears after the first refresh. Google Ads fills the sheet every morning once the feed script is set up; to start now, upload the Google Ads exports.</p><p><a href="#upload">Go to Upload and refresh →</a></p>`
+        : '<div class="loading">Loading the briefing…</div>';
+      return;
+    }
+    main.innerHTML = view.indexOf('p:') === 0 ? viewProject(view.slice(2)) : VIEWS[view]();
+    document.title = 'County Search QC';
+    wire();
+  }
+
+  function showError(e) {
+    $('#main').innerHTML = `<div class="loading">Could not load the data: ${esc(errText(e))}. If this keeps happening, ask Abhay to run Search QC › Refresh now in the spreadsheet.</div>`;
+  }
+
+  const line = (tone, label, html) => `<p class="result-line">${tone ? `<span class="chip ${tone}">${esc(label)}</span> ` : ''}${html}</p>`;
+  function uploadMsg(html) { const o = $('#upload-out'); if (o) o.innerHTML = html; }
+
+  function wire() {
+    document.querySelectorAll('[data-more]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.more; S.more[k] = !S.more[k]; const y = window.scrollY; render(); window.scrollTo(0, y); }));
+    document.querySelectorAll('a[data-project]').forEach((a) => a.addEventListener('click', () => { S.terms.project = a.dataset.project; }));
+    const day = $('#t-day');
+    if (day) {
+      day.addEventListener('change', () => { S.terms.day = day.value; render(); });
+      $('#t-proj').addEventListener('change', (e) => { S.terms.project = e.target.value; render(); });
+      document.querySelectorAll('[data-show]').forEach((b) => b.addEventListener('click', () => { S.terms.show = b.dataset.show; render(); }));
+      const q = $('#t-q');
+      let tmr;
+      q.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(() => { S.terms.q = q.value.trim(); render(); const n = $('#t-q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); });
+    }
+    const pick = $('#pick');
+    if (pick) {
+      const input = $('#files'), drop = $('#drop');
+      pick.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => { upload(input.files); input.value = ''; });
+      drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+      drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); upload(e.dataTransfer && e.dataTransfer.files); });
+      $('#refresh').addEventListener('click', () => {
+        uploadMsg(line('', '', '<span class="muted">Refreshing… this takes up to a minute.</span>'));
+        call('refreshNow').then(load).then(() => uploadMsg(line('good', 'Done', 'The briefing is up to date.')))
+          .catch((e) => uploadMsg(line('bad', 'Problem', esc(errText(e)))));
+      });
+    }
+  }
+
+  /** Bytes of a CSV export to text. Google Ads exports are UTF-16LE with a BOM; others are UTF-8 with or without a BOM. */
+  function decode(buf) {
+    const b = new Uint8Array(buf);
+    let t;
+    if (b.length >= 2 && b[0] === 0xff && b[1] === 0xfe) t = new TextDecoder('utf-16le').decode(b.subarray(2));
+    else if (b.length >= 2 && b[0] === 0xfe && b[1] === 0xff) t = new TextDecoder('utf-16be').decode(b.subarray(2));
+    else if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) t = new TextDecoder('utf-8').decode(b.subarray(3));
+    // UTF-16 without a BOM: plain-ASCII text has a zero in every other byte.
+    else if (b.length >= 4 && b[0] && !b[1] && b[2] && !b[3]) t = new TextDecoder('utf-16le').decode(b);
+    else if (b.length >= 4 && !b[0] && b[1] && !b[2] && b[3]) t = new TextDecoder('utf-16be').decode(b);
+    else {
+      // Strict UTF-8 first; a file saved by Excel as "CSV" (Windows-1252) falls back instead of filling with U+FFFD.
+      try { t = new TextDecoder('utf-8', { fatal: true }).decode(b); } catch (e) { t = new TextDecoder('windows-1252').decode(b); }
+    }
+    return t.replace(/^﻿/, '');
+  }
+
+  const mb = (bytes) => (Math.round((num0(bytes) / 1048576) * 10) / 10).toString() + ' MB';
+  function upload(list) {
+    const files = Array.from(list || []);
+    if (!$('#upload-out') || !files.length) return;
+    if (files.length > MAX_FILES) { uploadMsg(line('bad', 'Too many files', `You chose ${n0(files.length)} files. Upload at most ${MAX_FILES} at a time.`)); return; }
+    const tooBig = files.filter((f) => num0(f.size) > MAX_BYTES);
+    if (tooBig.length) {
+      uploadMsg(line('bad', 'Too big', `${tooBig.map((f) => `${esc(f.name)} (${mb(f.size)})`).join(', ')} ${tooBig.length === 1 ? 'is' : 'are'} over 10 MB. Export a shorter date range and try again.`));
+      return;
+    }
+    uploadMsg(line('', '', '<span class="muted">Reading and loading… this takes up to a minute.</span>'));
+    Promise.all(files.map((f) => f.arrayBuffer().then((buf) => ({ name: str(f.name), text: decode(buf) }), (e) => { throw new Error('Could not read ' + str(f.name) + ': ' + errText(e)); })))
+      .then((payload) => call('uploadExports', payload))
+      .then((res) => load().then(() => res))
+      .then((res) => {
+        const rows = arr(res).filter(isObj);
+        uploadMsg(rows.length ? rows.map((r) => (num(r.rows)
+          ? line('good', 'Loaded', `${esc(r.name)}: ${esc(str(r.kind).replace(/_/g, ' ') || 'report')}, ${n0(r.rows)} rows (${esc(drange(r.first_day, r.last_day))})${r.note ? ' · ' + esc(r.note) : ''}`)
+          : line('bad', 'Skipped', `${esc(r.name)}: ${esc(r.note || 'not recognised')}`))).join('')
+          : line('bad', 'Problem', 'The server did not say what it loaded. Check the spreadsheet’s Read me tab.'));
+      })
+      .catch((e) => uploadMsg(line('bad', 'Problem', esc(errText(e)))));
+  }
+
+  // ------------------------------------------------------------------ model: fill every section the views read, so missing data shows as '–', never crashes
+  function normalize(m) {
+    const ids = [];
+    m.projects = arr(m.projects).filter((p) => isObj(p) && (typeof p.id === 'string' || typeof p.id === 'number') && str(p.id) !== '')
+      .map((p) => Object.assign({}, p, { id: str(p.id), name: str(p.name) || str(p.id), location: str(p.location) }))
+      .filter((p) => (ids.indexOf(p.id) < 0 ? ids.push(p.id) : false));
+    /** Map project id -> fn(own value as an object), with no prototype. */
+    const byProject = (o, fn) => { const out = Object.create(null); ids.forEach((id) => { out[id] = (fn || ((x) => x))(obj(own(o, id))); }); return out; };
+    const periods = (o) => Object.assign({}, o, { last7: obj(o.last7), prev7: obj(o.prev7), since: obj(o.since) });
+    m.fixes = arr(m.fixes).filter(isObj);
+    m.campaigns = arr(m.campaigns).filter(isObj).map((c) => Object.assign({}, c, { series: arr(c.series).filter(isObj) }));
+    const data = obj(m.data);
+    m.data = Object.assign({}, data);
+    ['campaign_days', 'search_terms', 'agency_sheet', 'changes'].forEach((k) => { m.data[k] = obj(data[k]); });
+    m.data.search_terms = Object.assign({}, m.data.search_terms, { days: arr(m.data.search_terms.days).filter((d) => typeof d === 'string') });
+    const w = obj(m.windows);
+    m.windows = { since: obj(w.since), last7: obj(w.last7), prev7: obj(w.prev7) };
+    const a = periods(obj(m.account));
+    a.daily = arr(a.daily).filter(isObj).map((d) => { const bp = obj(d.by_project), row = Object.create(null); row.day = d.day; ids.forEach((id) => { row[id] = num0(own(bp, id)); }); return row; });
+    m.account = a;
+    m.project_stats = byProject(m.project_stats, (ps) => Object.assign(periods(ps), { daily: arr(ps.daily).filter(isObj) }));
+    const ag = Object.assign({}, obj(m.agency));
+    ag.excludes = obj(ag.excludes); ag.adds = obj(ag.adds);
+    ag.by_day = arr(ag.by_day).filter(isObj);
+    ag.by_project = byProject(ag.by_project);
+    ['overdue_excludes', 'overdue_adds', 'no_negative_rows'].forEach((k) => { ag[k] = arr(ag[k]); });
+    m.agency = ag;
+    const rk = Object.assign({}, obj(m.risks));
+    ['brand_no_word', 'brand_leak', 'blocked', 'risky', 'conflicts'].forEach((k) => { rk[k] = arr(rk[k]); });
+    rk.by_project = byProject(rk.by_project);
+    m.risks = rk;
+    if (isObj(m.keywords)) {
+      const k = Object.assign({}, m.keywords);
+      ['lp_cost', 'rel_cost', 'status_counts'].forEach((x) => { k[x] = obj(k[x]); });
+      ['no_conv', 'low_quality', 'duplicates', 'product_mismatch'].forEach((x) => { k[x] = arr(k[x]); });
+      k.by_project = byProject(k.by_project);
+      m.keywords = k;
+    } else m.keywords = null;
+    m.competitors = isObj(m.competitors) ? Object.assign({}, m.competitors, { rows: arr(m.competitors.rows).filter(isObj) }) : null;
+    m.ctm = isObj(m.ctm) ? Object.assign({}, m.ctm, {
+      periods: arr(m.ctm.periods).filter(isObj),
+      events: arr(m.ctm.events).filter(isObj).map((e) => Object.assign({}, e, { lines: arr(e.lines) })),
+    }) : null;
+    m.latest_day = isObj(m.latest_day) ? Object.assign({}, m.latest_day, { by_project: byProject(m.latest_day.by_project) }) : null;
+    m.coverage = arr(m.coverage);
+    return m;
+  }
+
+  function normReview(txt) {
+    const rows = arr(JSON.parse(txt || '[]')).filter(isObj);
+    return rows.map((r) => Object.assign({}, r, { flags: arr(r.flags) }));
+  }
+
+  function setModel(txt) {
+    const m = JSON.parse(txt || '{}');
+    if (!isObj(m) || !Array.isArray(m.projects)) { S.model = null; S.empty = true; render(); return; }
+    S.empty = false;
+    S.model = normalize(m);
+    S.review = null;
+    PROJ = Object.create(null);
+    S.model.projects.forEach((p) => { PROJ[p.id] = p; });
+    CAMP = Object.create(null);
+    S.model.campaigns.forEach((c) => { if (c.id !== null && c.id !== undefined && !CAMP[c.id]) CAMP[c.id] = c; });
+    render();
+  }
+
+  function load() {
+    return call('getModel').then(setModel);
+  }
+
+  // Test hook for tests-js/ui.test.js (no effect on the page).
+  window.__qcTest = { render, setModel, upload, decode, esc, htmlToText, fixText, state: S };
+
+  window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
+  let rz;
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.model) { const y = window.scrollY; render(); window.scrollTo(0, y); } }, 200); });
+  render();
+  call('whoAmI').then((me) => { me = obj(me); S.me = { email: str(me.email), canUpload: me.canUpload === true }; if (S.view === 'upload') render(); }).catch(() => {});
+  load().catch(showError);
+})();

@@ -734,8 +734,12 @@ def build(T: dict, cfg: dict, as_of: str) -> tuple[dict, list]:
     # ======================================================= 8. competitors (auction insights)
     competitors = None
     if auction:
-        competitors = dict(from_=auction[0]["period_start"], to=auction[0]["day"],
-                           rows=sorted(auction, key=lambda x: (x["impression_share"] is None, -(x["impression_share"] or 0), x["domain"])))
+        # several exports can be loaded: show one period only, the one that ends latest (the longest of those if they tie)
+        a_end = max(x["day"] for x in auction)
+        a_start = min(x["period_start"] for x in auction if x["day"] == a_end)
+        a_rows = [x for x in auction if x["day"] == a_end and x["period_start"] == a_start]
+        competitors = dict(from_=a_start, to=a_end,
+                           rows=sorted(a_rows, key=lambda x: (x["impression_share"] is None, -(x["impression_share"] or 0), x["domain"])))
         competitors["from"] = competitors.pop("from_")
 
     def span(rows, key="day"):

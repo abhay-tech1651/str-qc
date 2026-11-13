@@ -884,8 +884,12 @@ function buildModel(T, cfg, asOf) {
   // ======================================================= 8. competitors (auction insights)
   var competitors = null;
   if (auction.length) {
-    competitors = { from: auction[0].period_start, to: auction[0].day,
-      rows: sortBy(auction, function (x) {
+    // several exports can be loaded: show one period only, the one that ends latest (the longest of those if they tie)
+    var aEnd = modelMaxStr_(auction.map(function (x) { return x.day; }), '');
+    var aStart = modelMinStr_(auction.filter(function (x) { return x.day === aEnd; }).map(function (x) { return x.period_start; }), '');
+    var aRows = auction.filter(function (x) { return x.day === aEnd && x.period_start === aStart; });
+    competitors = { from: aStart, to: aEnd,
+      rows: sortBy(aRows, function (x) {
         var none = x.impression_share === null || x.impression_share === undefined;
         return [none, -(x.impression_share || 0), x.domain];
       }) };

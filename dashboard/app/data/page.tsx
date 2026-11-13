@@ -28,7 +28,14 @@ function sources(m: Model | null): Source[] {
   const st = d?.search_terms ?? null;
   return [
     { name: "Search terms report", from: st?.from ?? null, to: st?.to ?? null, how: "Export from Google Ads", cadence: "Every morning", state: daily(st?.to) },
-    { name: "Change history", from: d?.changes?.from ?? null, to: d?.changes?.to ?? null, how: "Export from Google Ads", cadence: "Every morning", state: daily(d?.changes?.to) },
+    (() => {
+      // the export can reach past its last row: days with no changes in Google Ads have no rows
+      const covers = [d?.changes?.to, m?.agency?.last_change_day].filter(Boolean).sort().pop() ?? null;
+      const last = d?.changes?.to ?? null;
+      return { name: "Change history", from: d?.changes?.from ?? null, to: covers,
+        extra: last && covers && last !== covers ? `no changes made after ${dshort(last)}` : undefined,
+        how: "Export from Google Ads", cadence: "Every morning", state: daily(covers) } as Source;
+    })(),
     { name: "Agency STR sheet", from: d?.agency_sheet?.from ?? null, to: d?.agency_sheet?.to ?? null, how: "Read straight from Google Sheets", cadence: "Every morning", state: any(d?.agency_sheet?.to) },
     { name: "Campaign report (by day)", from: cd?.from ?? null, to: cd?.to ?? null,
       extra: cd?.complete_through && cd.complete_through !== cd.to ? `complete to ${dshort(cd.complete_through)}` : undefined,

@@ -174,7 +174,8 @@ def build(T: dict, cfg: dict, as_of: str) -> tuple[dict, list]:
             negs.append(dict(x, nmatch=m, nwords=w, level="ad group" if x["ad_group"] else "campaign"))
     kws = [dict(x, kw=" ".join(tok(x["item"])), kmatch=x["kind"].split()[0]) for x in chs
            if "match keyword added" in x["kind"] and not x["kind"].startswith("negative")]
-    last_change = max((x["day"] for x in changes), default="")
+    # the export period can run past the last change (days with no changes); the store passes that end as changes_through
+    last_change = max([x["day"] for x in changes] + ([str(cfg["changes_through"])] if cfg.get("changes_through") else []), default="")
     first_change = min((x["day"] for x in changes), default="")
 
     def covered(day):

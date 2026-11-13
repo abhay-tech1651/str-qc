@@ -227,7 +227,8 @@ function buildModel(T, cfg, asOf) {
   var kws = chs.filter(isKwAdded).map(function (x) {
     return Object.assign({}, x, { kw: tok(x.item).join(' '), kmatch: modelFirstWord_(x.kind) });
   });
-  var lastChange = modelMaxStr_(changes.map(function (x) { return x.day; }), '');
+  // the export period can run past the last change (days with no changes); the store passes that end as cfg.changes_through
+  var lastChange = modelMaxStr_(changes.map(function (x) { return x.day; }).concat(cfg && cfg.changes_through ? [String(cfg.changes_through)] : []), '');
   var firstChange = modelMinStr_(changes.map(function (x) { return x.day; }), '');
   // Does the loaded change history reach back to the day before this sheet day? If not, a missing negative proves nothing.
   var covered = function (day) { return !!firstChange && addDays(day, -1) >= firstChange; };

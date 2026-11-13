@@ -135,7 +135,7 @@ export default async function AgencyPage({ searchParams }: { searchParams: Promi
       </Section>
 
       <p className="mt-10 text-xs leading-relaxed text-muted-foreground">
-        A call counts as applied when a negative that blocks the search appears in the change history from the day before the sheet day onwards. Latest change in the history: {dlong(a.last_change_day) || "–"}.
+        A call counts as applied when a negative that blocks the search appears in the change history from the day before the sheet day onwards. The change history you loaded covers up to {dlong(a.last_change_day) || "–"}.
       </p>
     </>
   );

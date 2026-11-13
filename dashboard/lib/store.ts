@@ -109,13 +109,36 @@ function rememberSnapshot(kind: string, rows: Record<string, unknown>[], exporte
   writeJson(snapshotsPath, snaps);
 }
 
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/**
+ * The last complete day a Google Ads export covers: the end of the period on its second line ("6 November 2026 - 13 November 2026"),
+ * but never the day it was downloaded (that day was not over yet). Used for the change history, whose rows stop at the last change.
+ */
+export function periodEnd(text: string, exportedOn: string): string | null {
+  const line = text.replace(/^﻿/, "").split(/\r?\n/)[1] ?? "";
+  const m = /(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s*$/.exec(line.trim());
+  if (!m) return null;
+  const mi = MONTHS.indexOf(m[2].toLowerCase());
+  if (mi < 0) return null;
+  const end = `${m[3]}-${String(mi + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  const [y, mo, d] = exportedOn.split("-").map(Number);
+  const dayBefore = new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10);
+  return end < dayBefore ? end : dayBefore;
+}
+
 export function importCsv(name: string, buf: Buffer, exportedOn: string, exportedMs = Date.now()): ImportResult {
   if (buf.length > MAX_BYTES) return { name, kind: "unknown", rows: 0, first_day: null, last_day: null, note: "larger than 15 MB" };
   const sha = crypto.createHash("sha256").update(buf).digest("hex");
   if (loadedFiles().some((f) => f.sha === sha)) return { name, kind: "already loaded", rows: 0, first_day: null, last_day: null, skipped: true, note: "this exact file is already loaded" };
   const text = decodeText(buf);
   const { kind, rows } = parseExport(text);
-  if (kind === "unknown" || !rows.length) return { name, kind: "unknown", rows: 0, first_day: null, last_day: null, note: "not a Google Ads export this dashboard reads" };
+  if (kind === "unknown" || !rows.length) {
+    const head = text.slice(0, 3000);
+    const campaignTotals = /	Campaign	|^Campaign	/m.test(head) && /Search impr\. share/.test(head) && !/	Day	|^Day	/m.test(head);
+    return { name, kind: "unknown", rows: 0, first_day: null, last_day: null,
+      note: campaignTotals ? "this campaign report has no Day column: in Google Ads › Campaigns, use Segment › Time › Day, then download again" : "not a Google Ads export this dashboard reads" };
+  }
   if (kind === "search_terms") {
     // a search terms report has no Day column: one covering several days cannot be split into days, so it is refused
     const period = text.replace(/^\uFEFF/, "").split(/\r?\n/)[1] ?? "";
@@ -154,7 +177,8 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
   writeJson(tablePath(t), mergeRows(t, readTable(t), keep));
   rememberSnapshot(kind, keep, exportedMs, name);
   const s = span(keep);
-  recordFile({ name, kind, rows: keep.length, ...s, sha, note });
+  const covers_to = kind === "changes" ? periodEnd(text, exportedOn) : null;
+  recordFile({ name, kind, rows: keep.length, ...s, sha, note, ...(covers_to ? { covers_to } : {}) });
   return { name, kind, rows: keep.length, ...s, note };
 }
 
@@ -285,6 +309,8 @@ export function config(): Record<string, unknown> {
   if (overrides && Array.isArray(cfg.projects)) {
     cfg.projects = (cfg.projects as Record<string, unknown>[]).map((p) => ({ ...p, ...(overrides[String(p.id)] || {}) }));
   }
+  const through = loadedFiles().filter((f) => f.kind === "changes" && f.covers_to).map((f) => String(f.covers_to)).sort().pop();
+  if (through) cfg.changes_through = through;
   return cfg;
 }
 

@@ -121,4 +121,4 @@ export interface ReviewRow {
   clicks: number; cost: number; cpc: number | null; conv: number; decision: string; neg_term: string; county_comment: string; flags: string[]; source: string;
 }
 
-export interface LoadedFile { name: string; kind: string; rows: number; first_day: string | null; last_day: string | null; loaded_at: string; sha: string; note?: string }
+export interface LoadedFile { name: string; kind: string; rows: number; first_day: string | null; last_day: string | null; loaded_at: string; sha: string; note?: string; covers_to?: string }

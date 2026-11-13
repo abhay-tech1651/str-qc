@@ -18,6 +18,9 @@ type EngineCtx = {
   buildModel: (T: Record<string, unknown[]>, cfg: unknown, asOf: string) => { model: unknown; review: unknown[] };
   mergeRows_: (table: string, oldRows: unknown[], newRows: unknown[]) => unknown[];
   defaultConfig: () => Record<string, unknown>;
+  tok: (s: string) => string[];
+  parseNegative: (s: string) => [string, string[]];
+  blocks: (match: string, words: string[], q: string[]) => boolean;
 };
 
 let ctx: EngineCtx | null = null;
@@ -33,6 +36,14 @@ function engine(): EngineCtx {
 
 /** Objects made inside the sandbox have their own prototypes; a JSON copy makes them plain. */
 const plain = <T>(x: unknown): T => JSON.parse(JSON.stringify(x)) as T;
+
+/** Same rule the engine uses for said-vs-done: does this negative (as written in the change history) block this search? */
+export function negativeBlocks(item: string, term: string): boolean {
+  const E = engine();
+  const mw = E.parseNegative(item);
+  return !!E.blocks(mw[0], mw[1], E.tok(term));
+}
+export const tokens = (s: string) => plain<string[]>(engine().tok(s)).join(" ");
 
 export const detectKind = (text: string) => engine().detectKind(text);
 export const parseExport = (text: string) => plain<{ kind: string; rows: Record<string, unknown>[] }>(engine().parseExport(text));

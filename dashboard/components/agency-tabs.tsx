@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Badge, Explain, ProjectTag, Tabs, TabsContent, TabsList, TabsTrigger } from "./ui";
 import { DataTable, type Column } from "./data-table";
+import { CallEvidence, type EvidenceCall } from "./call-evidence";
 import { cn, dshort, inr, n0, n1, pcolor } from "@/lib/format";
 import type { AddRow, Agency, CallRow, Risks } from "@/lib/types";
 
@@ -35,6 +36,9 @@ export function AgencyTabs({ initialTab, agency, risks, labels, projects }: {
   const [tab, setTab] = React.useState<AgencyTab>(initialTab);
   const pname = React.useCallback((id: string) => projects.find((p) => p.id === id)?.name ?? "Other", [projects]);
   const label = React.useCallback((c: string) => labels[c] ?? c, [labels]);
+  const [call, setCall] = React.useState<EvidenceCall | null>(null);
+  const openEx = (r: CallRow) => setCall({ term: r.term, day: r.day, campaign: r.campaign, ad_group: r.ad_group, cost: r.cost, neg_term: r.neg_term, kind: "exclude" });
+  const openAdd = (r: AddRow) => setCall({ term: r.term, day: r.day, campaign: r.campaign, ad_group: r.ad_group, cost: r.cost, kind: "add" });
 
   const onTab = (v: string) => {
     const t = (AGENCY_TABS as readonly string[]).includes(v) ? (v as AgencyTab) : "excludes";
@@ -133,21 +137,21 @@ export function AgencyTabs({ initialTab, agency, risks, labels, projects }: {
 
       <TabsContent value="excludes">
         <Lead>Searches the agency marked Exclude in its sheet, where no matching negative appeared in Google Ads within {agency.grace_days} days. Nothing stops these searches coming back.</Lead>
-        <DataTable rows={rec(agency.overdue_excludes)} columns={excludeCols} csvName="exclude-calls-never-applied" initialSort={{ key: "cost", dir: "desc" }}
+        <DataTable rows={rec(agency.overdue_excludes)} columns={excludeCols} csvName="exclude-calls-never-applied" onRowClick={openEx} initialSort={{ key: "cost", dir: "desc" }}
           empty="Every Exclude call that could be checked was applied." />
-        <Explain>Cost is what the search cost on the day it was reviewed. Send this list to the agency: each row needs the negative applied, or a reason why not.</Explain>
+        <Explain>Cost is what the search cost on the day it was reviewed. Click any row to see where a matching negative was added (and in which campaign), and whether the search came back. Send this list to the agency: each row needs the negative applied, or a reason why not.</Explain>
       </TabsContent>
 
       <TabsContent value="adds">
         <Lead>Good searches the agency marked Add, which never became a keyword in Google Ads within {agency.grace_days} days.</Lead>
-        <DataTable rows={rec(agency.overdue_adds)} columns={addCols} csvName="add-calls-never-added" initialSort={{ key: "cost", dir: "desc" }}
+        <DataTable rows={rec(agency.overdue_adds)} columns={addCols} csvName="add-calls-never-added" onRowClick={openAdd} initialSort={{ key: "cost", dir: "desc" }}
           empty="Every Add call that could be checked was added." />
         <Explain>The agency&apos;s own sheet says these searches should be keywords. Ask for them to be added, or for the sheet to be changed.</Explain>
       </TabsContent>
 
       <TabsContent value="nonegative">
         <Lead>Rows marked Exclude where the Negative column is empty, so whoever applies it has to guess the words and match type. {agency.no_negative.open ? `${n0(agency.no_negative.open)} of them are still open.` : ""}</Lead>
-        <DataTable rows={rec(agency.no_negative_rows)} columns={noNegCols} csvName="exclude-rows-without-negative" initialSort={{ key: "cost", dir: "desc" }}
+        <DataTable rows={rec(agency.no_negative_rows)} columns={noNegCols} csvName="exclude-rows-without-negative" onRowClick={openEx} initialSort={{ key: "cost", dir: "desc" }}
           empty="Every Exclude row has its negative written." />
         <Explain>“Applied anyway” means a matching negative went in even though the sheet did not say which. A guessed broad negative can block good searches, so the column should always be filled.</Explain>
       </TabsContent>
@@ -175,6 +179,7 @@ export function AgencyTabs({ initialTab, agency, risks, labels, projects }: {
         <DataTable rows={rec(risks.leaks)} columns={leakCols} csvName="searches-after-negative" initialSort={{ key: "later_cost", dir: "desc" }} empty="No search came back after its negative." />
         <Explain>By the match rules these searches should have been blocked from the day after the negative went in. Check in Google Ads that the negative is still in place and where it sits.</Explain>
       </TabsContent>
+      <CallEvidence call={call} onClose={() => setCall(null)} label={label} />
     </Tabs>
   );
 }

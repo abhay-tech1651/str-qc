@@ -1,5 +1,5 @@
 import { negativeBlocks, tokens } from "@/lib/engine";
-import { readTable } from "@/lib/store";
+import { config, readTable } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,5 +36,7 @@ export async function GET(req: Request) {
     .sort((a, b) => String(a.day).localeCompare(String(b.day)));
 
   const lastChange = changes.reduce((m, c) => (String(c.day) > m ? String(c.day) : m), "");
-  return Response.json({ term, campaign, ad_group: adGroup, day, kind, matches, seen, last_change: lastChange });
+  const through = String(config().changes_through ?? "");
+  const covered = through > lastChange ? through : lastChange;
+  return Response.json({ term, campaign, ad_group: adGroup, day, kind, matches, seen, last_change: covered });
 }

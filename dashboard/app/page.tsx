@@ -5,8 +5,9 @@ import { change, drange, dshort, inr, lakh, n0, n1, pcolor, pct } from "@/lib/fo
 import { Button, Card, CardBody, CardHeader, EmptyState, Explain, PageHeader, ProjectTag, Section } from "@/components/ui";
 import { IssueList, ProjectCard, StatCard } from "@/components/blocks";
 import { StackedDaily } from "@/components/charts";
+import { periodData, periodModel } from "@/lib/period";
 
-export default function OverviewPage() {
+export default async function OverviewPage() {
   if (!hasData()) {
     return (
       <>
@@ -17,7 +18,8 @@ export default function OverviewPage() {
       </>
     );
   }
-  const m = getModel();
+  const m = (await periodModel());
+  const pn = m.period?.name ?? "the last 7 days", pp = m.period?.prev ?? "the 7 days before", pns = pn.replace(/^the /, "");
   const a = m.account;
   const w = m.windows;
   const hasCamp = m.campaigns.length > 0;
@@ -34,16 +36,16 @@ export default function OverviewPage() {
         eyebrow={`Daily briefing · ${dshort(m.as_of)}`}
         title="Search ads at a glance"
         description={hasCamp
-          ? <>In the last 7 days ({drange(last7?.from, last7?.to)}) search ads cost <b className="font-semibold text-foreground">{lakh(a.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(a.last7.conv)}</b> Google conversions at <b className="font-semibold text-foreground">{inr(a.last7.cpa)}</b> each. Since {dshort(w.since?.from)}: {lakh(a.since.cost)} for {n1(a.since.conv)} conversions.</>
+          ? <>In {pn} ({drange(last7?.from, last7?.to)}) search ads cost <b className="font-semibold text-foreground">{lakh(a.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(a.last7.conv)}</b> Google conversions at <b className="font-semibold text-foreground">{inr(a.last7.cpa)}</b> each. Since {dshort(w.since?.from)}: {lakh(a.since.cost)} for {n1(a.since.conv)} conversions.</>
           : <>The agency sheet is loaded, so the search-term checks are live. Spend, conversions and keyword quality appear once a campaign report is imported.</>}
         actions={<Button asChild variant="outline"><Link href="/issues">All issues <ArrowRight /></Link></Button>}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Spend, last 7 days" value={hasCamp ? lakh(a.last7.cost) : "–"} delta={change(a.last7.cost, a.prev7.cost)} invert
-          sub={hasCamp ? `vs ${lakh(a.prev7.cost)} the 7 days before` : "campaign data not imported"} spark={a.daily.map((d) => d.cost)} />
-        <StatCard label="Google conversions, last 7 days" value={hasCamp ? n1(a.last7.conv) : "–"} delta={change(a.last7.conv, a.prev7.conv)}
-          sub={hasCamp ? `${n1(a.prev7.conv)} the 7 days before · counted by Google, not CRM` : ""} spark={a.daily.map((d) => d.conv)} color="var(--good)" />
+        <StatCard label={`Spend, ${pns}`} value={hasCamp ? lakh(a.last7.cost) : "–"} delta={change(a.last7.cost, a.prev7.cost)} invert
+          sub={hasCamp ? `vs ${lakh(a.prev7.cost)} ${pp}` : "campaign data not imported"} spark={a.daily.map((d) => d.cost)} />
+        <StatCard label={`Google conversions, ${pns}`} value={hasCamp ? n1(a.last7.conv) : "–"} delta={change(a.last7.conv, a.prev7.conv)}
+          sub={hasCamp ? `${n1(a.prev7.conv)} ${pp} · counted by Google, not CRM` : ""} spark={a.daily.map((d) => d.conv)} color="var(--good)" />
         <StatCard label="Cost per conversion" value={hasCamp ? inr(a.last7.cpa) : "–"} delta={change(a.last7.cpa, a.prev7.cpa)} invert
           sub={hasCamp ? `${inr(a.since.cpa)} since ${dshort(w.since?.from)}` : ""} />
         <StatCard label="Agency Exclude calls applied" value={m.agency.changes_from ? pct(e.applied_pct) : "–"}
@@ -57,7 +59,7 @@ export default function OverviewPage() {
           <div className="px-2 pb-2 pt-1"><IssueList fixes={top} model={m} limit={7} /></div>
         </Card>
         <Card>
-          <CardHeader title="Where the last 7 days went" description={hasCamp ? `${lakh(a.last7.cost)} across ${m.projects.length} projects` : "No campaign data yet"} />
+          <CardHeader title={`Where ${pn} went`} description={hasCamp ? `${lakh(a.last7.cost)} across ${m.projects.length} projects` : "No campaign data yet"} />
           <CardBody className="pt-2">
             {hasCamp ? (
               <div className="space-y-3">
@@ -79,7 +81,7 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      <Section title="Projects" description="The same view for every project: last 7 days, the trend since the start of the data, and the most important thing to fix.">
+      <Section title="Projects" description={`The same view for every project: ${pns}, the trend since the start of the data, and the most important thing to fix.`}>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {m.projects.map((p) => <ProjectCard key={p.id} model={m} id={p.id} />)}
         </div>

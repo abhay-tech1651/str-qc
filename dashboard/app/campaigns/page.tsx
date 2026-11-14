@@ -4,12 +4,13 @@ import { getModel, hasData } from "@/lib/store";
 import { drange, dshort, lakh, n1, inr } from "@/lib/format";
 import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Section } from "@/components/ui";
 import { CampaignsView } from "@/components/campaigns-view";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Campaigns" };
 
 const RULES: { tone: "warn" | "bad" | "muted" | "good"; label: string; rule: string }[] = [
-  { tone: "muted", label: "Not spending", rule: "No spend at all in the last 7 days." },
+  { tone: "muted", label: "Not spending", rule: "No spend at all in the period shown." },
   { tone: "muted", label: "Uses N% of budget", rule: "Spent less than 30% of its daily budget. It is not finding enough searches." },
   { tone: "warn", label: "Held back by budget", rule: "Missed 20% or more of the searches it could show on because the budget ran out." },
   { tone: "bad", label: "Losing auctions", rule: "Missed 40% or more because other ads won (bid or ad quality), or showed on under 10%." },
@@ -30,7 +31,8 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
       </>
     );
   }
-  const m = getModel();
+  const m = (await periodModel());
+  const pn = m.period?.name ?? "the last 7 days", pp = m.period?.prev ?? "the 7 days before", pns = pn.replace(/^the /, "");
   const w = m.windows;
   const a = m.account;
   const hasCamp = m.campaigns.length > 0;
@@ -41,7 +43,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
         eyebrow="Performance"
         title="Campaigns"
         description={hasCamp
-          ? <>All {m.campaigns.length} search campaigns. Status and “can it show?” look at the last 7 days ({drange(w.last7?.from, w.last7?.to)}); money and conversions add up everything since {dshort(w.since?.from)} ({drange(w.since?.from, w.since?.to)}): <b className="font-semibold text-foreground">{lakh(a.since.cost)}</b> for <b className="font-semibold text-foreground">{n1(a.since.conv)}</b> Google conversions at <b className="font-semibold text-foreground">{inr(a.since.cpa)}</b> each.</>
+          ? <>All {m.campaigns.length} search campaigns. Status and “can it show?” look at {pn} ({drange(w.last7?.from, w.last7?.to)}); money and conversions add up everything since {dshort(w.since?.from)} ({drange(w.since?.from, w.since?.to)}): <b className="font-semibold text-foreground">{lakh(a.since.cost)}</b> for <b className="font-semibold text-foreground">{n1(a.since.conv)}</b> Google conversions at <b className="font-semibold text-foreground">{inr(a.since.cpa)}</b> each.</>
           : <>Spend, conversions and status appear once a campaign report is imported.</>}
       />
 
@@ -53,7 +55,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
         </EmptyState>
       )}
 
-      <Section title="How to read this page" description="The status is worked out from the last 7 days, checking the rules in this order. The first one that fits is shown.">
+      <Section title="How to read this page" description="The status is worked out from the period chosen at the top (normally the last 7 days), checking the rules in this order. The first one that fits is shown.">
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader title="Status rules" description="Based on Google's impression share: of all the searches a campaign could have shown on, how many it did." />

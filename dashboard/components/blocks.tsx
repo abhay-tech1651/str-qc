@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Copy, Check } from "lucide-react";
 import { Badge, Button, Card, ProjectTag, Segmented, Sheet } from "./ui";
 import { Sparkline } from "./charts";
+import { IssueEvidence } from "./issue-evidence";
 import { agencyMessage, fixText, fixValue, MONEY_KIND, OWNER_LABEL, SEVERITY, TYPE_LABEL } from "@/lib/fixes";
 import { change, cn, inr, lakh, n1, pcolor, pct, plural, priceLabel } from "@/lib/format";
 import type { Campaign, Fix, Model } from "@/lib/types";
@@ -71,6 +72,7 @@ export function IssueDrawer({ fix, model, onClose }: { fix: Fix | null; model: M
           <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">What to do</div>
           <p className="text-[15px] leading-relaxed">{t.todo}</p>
         </div>
+        <IssueEvidence fix={fix} model={model} />
         <Button asChild variant="outline"><Link href={t.href} onClick={onClose}>{t.link} <ArrowRight /></Link></Button>
       </div>
     </Sheet>
@@ -193,7 +195,7 @@ export function ProjectCard({ model, id }: { model: Model; id: string }) {
             {d.label ? <Badge tone={d.dir === "flat" ? "muted" : d.dir === "up" ? "warn" : "good"} className="tabular">{d.label}</Badge> : null}
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
-            spent in the last 7 days · {n1(ps.last7.conv)} Google {plural(ps.last7.conv, "conversion")}{ps.last7.cpa ? ` · ${inr(ps.last7.cpa)} each` : ""}
+            spent in {model.period?.name ?? "the last 7 days"} · {n1(ps.last7.conv)} Google {plural(ps.last7.conv, "conversion")}{ps.last7.cpa ? ` · ${inr(ps.last7.cpa)} each` : ""}
           </div>
           <div className="-mx-1 mt-3"><Sparkline values={ps.daily.map((x) => x.cost)} color={color} height={40} /></div>
         </>

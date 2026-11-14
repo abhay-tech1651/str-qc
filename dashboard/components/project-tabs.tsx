@@ -62,7 +62,7 @@ export function ProjectTabs({ model, id, initial }: { model: Model; id: string; 
             </div>
           </Card>
           <Card>
-            <CardHeader title="Campaigns" description={camps.length ? "Spend per day over the last 7 days, and how each one is doing." : "No campaign data yet"} />
+            <CardHeader title="Campaigns" description={camps.length ? `Spend per day over ${model.period?.name ?? "the last 7 days"}, and how each one is doing.` : "No campaign data yet"} />
             <CardBody className="pt-3">
               {camps.length ? (
                 <div className="space-y-1">

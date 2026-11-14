@@ -253,7 +253,7 @@ function parseSearchTerms(text) {
   var day = (lines.length > 1 ? parseDateText_(lines[1]) : null) || '';
   var hi = -1;
   for (var i = 0; i < Math.min(6, lines.length); i++) {
-    if (/^Search term[\t,]/.test(lines[i])) { hi = i; break; }
+    if (/^(Day[\t,])?Search term[\t,]/.test(lines[i])) { hi = i; break; }
   }
   if (hi < 0) return [];
   var sep = lines[hi].indexOf('\t') >= 0 ? '\t' : ',';
@@ -261,8 +261,11 @@ function parseSearchTerms(text) {
   var rows = parseDelimited_(body.join('\n'), sep);
   var head = rows[0] || [];
   return parseRowsToObjects_(rows).map(function (r) {
+    // with Segment > Time > Day the report has a Day column, so one file can hold several days
+    var dcol = String(parseCol_(r, head, 'Day', ''));
+    var rowDay = /^\d{4}-\d{2}-\d{2}/.test(dcol) ? dcol.slice(0, 10) : (parseDateText_(dcol) || day);
     return {
-      day: day,
+      day: rowDay,
       term: String(parseCol_(r, head, 'Search term', '')).trim().toLowerCase(),
       match_type: parseCol_(r, head, 'Match type', ''),
       ads_status: parseCol_(r, head, 'Added/Excluded', ''),

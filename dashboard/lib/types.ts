@@ -114,6 +114,8 @@ export interface Model {
   agency: Agency; keywords: Keywords | null; risks: Risks; ctm: Ctm | null; competitors: Competitors | null;
   fixes: Fix[];
   coverage: { day: string; report_rows: number; report_cost: number; sheet_rows: number; sheet_cost: number; reviewed: number; cost_matches: boolean }[];
+  /** Added by the dashboard (not the engine): the period every page is showing. */
+  period?: { key: string; from: string | null; to: string | null; name: string; prev: string };
 }
 
 export interface ReviewRow {

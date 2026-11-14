@@ -4,8 +4,9 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Shell, type ShellInfo } from "@/components/shell";
-import { getModel, hasData } from "@/lib/store";
+import { hasData, lastCompleteDay } from "@/lib/store";
 import { dshort, pcolor } from "@/lib/format";
+import { periodKey, periodModel } from "@/lib/period";
 
 export const metadata: Metadata = {
   title: { default: "County Search QC", template: "%s · County Search QC" },
@@ -15,9 +16,10 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-function shellInfo(): ShellInfo {
-  if (!hasData()) return { projects: [], fresh: "No data loaded yet", issues: 0, hasData: false };
-  const m = getModel();
+async function shellInfo(): Promise<ShellInfo> {
+  const key = await periodKey();
+  if (!hasData()) return { projects: [], fresh: "No data loaded yet", issues: 0, hasData: false, period: { key, from: null, to: null, last: null } };
+  const m = (await periodModel());
   const urgent = (id: string) => m.fixes.filter((f) => f.project === id && f.severity === "high").length;
   const ct = m.data.campaign_days?.complete_through;
   const st = m.data.search_terms?.to;
@@ -27,15 +29,16 @@ function shellInfo(): ShellInfo {
     fresh,
     issues: m.fixes.filter((f) => f.severity === "high").length,
     hasData: true,
+    period: { key, from: m.windows.last7?.from ?? null, to: m.windows.last7?.to ?? null, last: lastCompleteDay() },
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body className="font-sans antialiased">
         <Providers>
-          <Shell info={shellInfo()}>{children}</Shell>
+          <Shell info={await shellInfo()}>{children}</Shell>
         </Providers>
       </body>
     </html>

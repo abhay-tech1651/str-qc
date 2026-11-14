@@ -539,6 +539,16 @@ function buildModel(T, cfg, asOf) {
   var first = modelMinStr_(cdDays, null);
   var win = { since: [first, complete], last7: complete ? [addDays(complete, -6), complete] : null,
     prev7: complete ? [addDays(complete, -13), addDays(complete, -7)] : null };
+  // a chosen period (cfg.period {from, to}) replaces the last 7 days; the comparison is the same number of days just before
+  var per = cfg && cfg.period && cfg.period.from && cfg.period.to ? cfg.period : null;
+  if (per && complete) {
+    var pTo = modelMinStr_([String(per.to), complete], null), pFrom = String(per.from);
+    if (pFrom <= pTo) {
+      var plen = daysBetween(pFrom, pTo) + 1;
+      win.last7 = [pFrom, pTo];
+      win.prev7 = [addDays(pFrom, -plen), addDays(pFrom, -1)];
+    }
+  }
 
   var stats = function (rows) {
     if (!rows.length) return null;

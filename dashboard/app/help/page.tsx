@@ -7,6 +7,7 @@ import { getModel, hasData } from "@/lib/store";
 import { n0, pcolor } from "@/lib/format";
 import { MONEY_KIND, SEVERITY } from "@/lib/fixes";
 import { Badge, Button, Card, CardHeader, PageHeader, ProjectTag, Section } from "@/components/ui";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "How to read this" };
@@ -51,8 +52,8 @@ const RULES: { tone: Tone; label: string; rule: string; means: string }[] = [
   { tone: "good", label: "Healthy", rule: "None of the above.", means: "Nothing in the delivery numbers needs action this week." },
 ];
 
-export default function HelpPage() {
-  const m = hasData() ? getModel() : null;
+export default async function HelpPage() {
+  const m = hasData() ? (await periodModel()) : null;
   const grace = m?.agency.grace_days;
   const graceText = typeof grace === "number" ? `${n0(grace)} ${grace === 1 ? "day" : "days"}` : "a few days";
 

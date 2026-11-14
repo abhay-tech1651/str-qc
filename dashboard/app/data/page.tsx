@@ -6,6 +6,7 @@ import type { Model } from "@/lib/types";
 import { Badge, Card, CardBody, CardHeader, Explain, PageHeader, Section } from "@/components/ui";
 import { DataImport } from "@/components/data-import";
 import { CoverageTable, FilesTable, type CoverageRow, type FileRow } from "@/components/data-tables";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Import data" };
@@ -66,9 +67,9 @@ function Step({ n, title, children }: { n: number; title: ReactNode; children: R
   );
 }
 
-export default function DataPage() {
+export default async function DataPage() {
   const data = hasData();
-  const m = data ? getModel() : null;
+  const m = data ? (await periodModel()) : null;
   const src = sources(m);
   const files: FileRow[] = loadedFiles().map((f) => ({
     name: String(f.name ?? ""), kind: String(f.kind ?? "unknown"), rows: Number(f.rows) || 0,

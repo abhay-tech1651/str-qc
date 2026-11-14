@@ -7,6 +7,7 @@ import { Badge, EmptyState, PageHeader } from "@/components/ui";
 import { StatCard } from "@/components/blocks";
 import { ProjectTabs, type ProjectTab } from "@/components/project-tabs";
 import type { Model } from "@/lib/types";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,8 @@ export default async function ProjectPage({ params, searchParams }: Props) {
     );
   }
 
-  const m = getModel();
+  const m = (await periodModel());
+  const pn = m.period?.name ?? "the last 7 days", pp = m.period?.prev ?? "the 7 days before", pns = pn.replace(/^the /, "");
   const p = m.projects.find((x) => x.id === id);
   if (!p) notFound();
 
@@ -97,17 +99,17 @@ export default async function ProjectPage({ params, searchParams }: Props) {
 
       <p className="-mt-2 mb-6 max-w-3xl text-sm text-muted-foreground">
         {hasCamp
-          ? <>In the last 7 days ({drange(w.last7?.from, w.last7?.to)}) {short}&apos;s search ads cost <b className="font-semibold text-foreground">{lakh(ps.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(ps.last7.conv)}</b> Google {plural(ps.last7.conv, "conversion")}. {fixes.length ? <>There {fixes.length === 1 ? "is" : "are"} {fixes.length} {plural(fixes.length, "issue")} open for this project{urgent ? <>, {urgent} of them urgent</> : null}.</> : "Nothing is open for this project."}</>
+          ? <>In {pn} ({drange(w.last7?.from, w.last7?.to)}) {short}&apos;s search ads cost <b className="font-semibold text-foreground">{lakh(ps.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(ps.last7.conv)}</b> Google {plural(ps.last7.conv, "conversion")}. {fixes.length ? <>There {fixes.length === 1 ? "is" : "are"} {fixes.length} {plural(fixes.length, "issue")} open for this project{urgent ? <>, {urgent} of them urgent</> : null}.</> : "Nothing is open for this project."}</>
           : <>Spend and conversions appear once a campaign report is imported. The search-term and agency checks below already use the agency&apos;s STR sheet.</>}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Spend, last 7 days" value={hasCamp ? lakh(ps.last7.cost) : "–"} delta={hasCamp ? change(ps.last7.cost, ps.prev7.cost) : undefined} invert
-          sub={hasCamp ? `vs ${lakh(ps.prev7.cost)} the 7 days before` : none} spark={hasCamp ? ps.daily.map((d) => d.cost) : undefined} color={color} />
-        <StatCard label="Google conversions, last 7 days" value={hasCamp ? n1(ps.last7.conv) : "–"} delta={hasCamp ? change(ps.last7.conv, ps.prev7.conv) : undefined}
-          sub={hasCamp ? `${n1(ps.prev7.conv)} the 7 days before · counted by Google, not CRM` : none} spark={hasCamp ? convSpark : undefined} color="var(--good)" />
+        <StatCard label={`Spend, ${pns}`} value={hasCamp ? lakh(ps.last7.cost) : "–"} delta={hasCamp ? change(ps.last7.cost, ps.prev7.cost) : undefined} invert
+          sub={hasCamp ? `vs ${lakh(ps.prev7.cost)} ${pp}` : none} spark={hasCamp ? ps.daily.map((d) => d.cost) : undefined} color={color} />
+        <StatCard label={`Google conversions, ${pns}`} value={hasCamp ? n1(ps.last7.conv) : "–"} delta={hasCamp ? change(ps.last7.conv, ps.prev7.conv) : undefined}
+          sub={hasCamp ? `${n1(ps.prev7.conv)} ${pp} · counted by Google, not CRM` : none} spark={hasCamp ? convSpark : undefined} color="var(--good)" />
         <StatCard label="Cost per conversion" value={hasCamp ? inr(ps.last7.cpa) : "–"} delta={hasCamp ? change(ps.last7.cpa, ps.prev7.cpa) : undefined} invert
-          sub={hasCamp ? `last 7 days · ${inr(ps.since.cpa)} since ${dshort(w.since?.from)}` : none} />
+          sub={hasCamp ? `${pns} · ${inr(ps.since.cpa)} since ${dshort(w.since?.from)}` : none} />
         <StatCard label="Share of account spend" value={hasCamp ? pct(ps.share_of_spend) : "–"}
           sub={hasCamp ? `${lakh(ps.since.cost)} of ${lakh(m.account.since.cost)} since ${dshort(w.since?.from)}` : none} />
       </div>

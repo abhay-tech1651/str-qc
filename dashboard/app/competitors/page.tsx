@@ -4,6 +4,7 @@ import { getModel, hasData } from "@/lib/store";
 import { drange, pct } from "@/lib/format";
 import { Card, CardBody, CardHeader, EmptyState, Explain, PageHeader, ProjectTag, Section } from "@/components/ui";
 import { AuctionTable, ShareBars } from "@/components/competitors-view";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Competitors" };
@@ -16,7 +17,7 @@ const TERMS: { term: string; text: string }[] = [
   { term: "We beat them", text: "How often our ad was above theirs, or ours showed and theirs did not." },
 ];
 
-export default function CompetitorsPage() {
+export default async function CompetitorsPage() {
   const empty = (title: string, body: string) => (
     <>
       <PageHeader eyebrow="Performance" title="Competitors" description="Who else bids on the same searches as us, and how often they beat us." />
@@ -26,7 +27,7 @@ export default function CompetitorsPage() {
     </>
   );
   if (!hasData()) return empty("No data yet", "load your Google Ads exports.");
-  const m = getModel();
+  const m = (await periodModel());
   const c = m.competitors;
   if (!c || !c.rows.length) return empty("No auction insights yet", "load the Google Ads auction insights report.");
 

@@ -161,17 +161,26 @@ def detect(path: Path) -> str:
     return "unknown"
 
 
+def _row_day(v: str, period) -> str:
+    """A Day cell ('2026-10-30' or '30 Oct 2026'); falls back to the report's period."""
+    if re.match(r"\d{4}-\d{2}-\d{2}", v):
+        return v[:10]
+    d = _date_from_text(v) or period
+    return d.isoformat() if d else ""
+
+
 def read_search_terms(path: Path) -> pd.DataFrame:
     """One row per search term x match type x campaign x ad group x keyword for the report's day."""
     lines = _text(path).splitlines()
     period = _date_from_text(lines[1]) if len(lines) > 1 else None
-    hi = next(i for i, l in enumerate(lines[:6]) if re.match(r"Search term[\t,]", l))  # the column header, not the "Search terms report" title
+    hi = next(i for i, l in enumerate(lines[:6]) if re.match(r"(Day[\t,])?Search term[\t,]", l))  # the column header, not the "Search terms report" title
     sep = "\t" if "\t" in lines[hi] else ","
     body = [l for l in lines[hi:] if l.strip() and not l.startswith("Total")]
     rows = list(csv.reader(io.StringIO("\n".join(body)), delimiter=sep))
     df = pd.DataFrame([r + [""] * (len(rows[0]) - len(r)) for r in rows[1:]], columns=rows[0]).fillna("")
     out = pd.DataFrame({
-        "day": period.isoformat() if period else "",
+        # with Segment > Time > Day the report has a Day column, so one file can hold several days
+        "day": df["Day"].map(lambda v: _row_day(v, period)) if "Day" in df.columns else (period.isoformat() if period else ""),
         "term": df["Search term"].str.strip().str.lower(),
         "match_type": df.get("Match type", ""),
         "ads_status": df.get("Added/Excluded", ""),

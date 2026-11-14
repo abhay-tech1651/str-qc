@@ -101,7 +101,7 @@ export function fixText(f: Fix, model: Model): FixText {
         detail: <>Brand searchers usually convert best, yet this campaign pays {inr(p.cpc)} a click (bidding: {p.bid_strategy}) for {n1(p.conv)} conversions in the period.</>,
         todo: "Check whether brand searchers call or visit instead of filling the form (Google doesn't count that), and whether the bidding pays more than needed.", href: `${proj}?tab=campaigns`, link: "See the campaign" };
     case "held_by_budget":
-      return { title: `${p.label} missed ${pct(p.lost_budget_pct)} of its searches in the last 7 days because the budget ran out`,
+      return { title: `${p.label} missed ${pct(p.lost_budget_pct)} of its searches in ${model.period?.name ?? "the last 7 days"} because the budget ran out`,
         detail: <>Budget {inr(p.budget)} a day. More budget buys more of the same searches; it doesn&apos;t make them better.</>,
         todo: "If its leads are good in the CRM, consider more budget. If not, leave it.", href: `${proj}?tab=campaigns`, link: "See the campaign" };
     case "ctm_pool":

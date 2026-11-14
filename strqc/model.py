@@ -451,6 +451,14 @@ def build(T: dict, cfg: dict, as_of: str) -> tuple[dict, list]:
     first = min((x["day"] for x in cd), default=None)
     win = dict(since=(first, complete), last7=(add_days(complete, -6), complete) if complete else None,
                prev7=(add_days(complete, -13), add_days(complete, -7)) if complete else None)
+    # a chosen period (cfg["period"] {from, to}) replaces the last 7 days; the comparison is the same number of days just before
+    per = cfg.get("period") or {}
+    if per.get("from") and per.get("to") and complete:
+        p_to, p_from = min(str(per["to"]), complete), str(per["from"])
+        if p_from <= p_to:
+            plen = days_between(p_from, p_to) + 1
+            win["last7"] = (p_from, p_to)
+            win["prev7"] = (add_days(p_from, -plen), add_days(p_from, -1))
 
     def stats(rows):
         if not rows:
@@ -771,12 +779,18 @@ def main():
     ap.add_argument("--as-of", default=dt.date.today().isoformat())
     ap.add_argument("--only", default="", help="keep only these tables (comma list); use with --name")
     ap.add_argument("--name", default="model")
+    ap.add_argument("--period", default="", help="FROM:TO (YYYY-MM-DD) to replace the last 7 days, and keep only sheet and search-term rows in it")
     a = ap.parse_args()
     T = json.loads((FIX / "tables.json").read_text(encoding="utf-8"))
     if a.only:
         keep = set(a.only.split(","))
         T = {k: (v if k in keep else []) for k, v in T.items()}
     cfg = json.loads((FIX / "config.json").read_text(encoding="utf-8"))
+    if a.period:
+        p_from, p_to = a.period.split(":")
+        cfg["period"] = {"from": p_from, "to": p_to}
+        for t in ("search_terms", "agency_calls"):
+            T[t] = [x for x in T[t] if p_from <= x["day"] <= p_to]
     model, review = build(T, cfg, a.as_of)
     (FIX / f"{a.name}.json").write_text(json.dumps(model, ensure_ascii=False, indent=1), encoding="utf-8")
     review_name = "review.json" if a.name == "model" else f"{a.name}_review.json"

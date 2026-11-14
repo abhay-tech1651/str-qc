@@ -5,6 +5,7 @@ import { drange, inr, lakh, n0, pcolor, pct } from "@/lib/format";
 import { Card, CardBody, CardHeader, EmptyState, Explain, PageHeader, ProjectTag, Section } from "@/components/ui";
 import { StatCard } from "@/components/blocks";
 import { KeywordTabs, QsChart } from "@/components/keywords-view";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Keywords" };
@@ -46,7 +47,7 @@ function RatingBar({ title, description, values }: { title: string; description:
   );
 }
 
-export default function KeywordsPage() {
+export default async function KeywordsPage() {
   const empty = (title: string, body: string) => (
     <>
       <PageHeader eyebrow="Performance" title="Keyword quality" description="How Google rates our keywords, ads and landing pages, and where that costs money." />
@@ -56,7 +57,7 @@ export default function KeywordsPage() {
     </>
   );
   if (!hasData()) return empty("No data yet", "load your Google Ads exports.");
-  const m = getModel();
+  const m = (await periodModel());
   const k = m.keywords;
   if (!k) return empty("No keyword report yet", "load the Google Ads keyword report (with Quality Score columns).");
 

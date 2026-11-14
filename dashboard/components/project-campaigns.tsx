@@ -22,11 +22,11 @@ function Swatch({ color, children }: { color: string; children: React.ReactNode 
 }
 
 const VERDICT_WORDS: Record<string, string> = {
-  budget: "Held back by budget: it missed 20% or more of its searches in the last 7 days because the daily budget ran out.",
+  budget: "Held back by budget: it missed 20% or more of its searches in the period shown because the daily budget ran out.",
   rank: "Losing auctions: it missed 40% or more of its searches because its bid or Quality Score was too low (rank).",
-  underspending: "Uses only part of its budget: in the last 7 days it spent under 30% of its daily budget.",
+  underspending: "Uses only part of its budget: in the period shown it spent under 30% of its daily budget.",
   brand_gap: "Missing brand searches: a brand campaign that showed on fewer than 80% of the searches for our own name.",
-  idle: "Not spending: no spend in the last 7 days.",
+  idle: "Not spending: no spend in the period shown.",
   ok: "Healthy: none of the warning rules is triggered.",
 };
 
@@ -71,7 +71,7 @@ export function ProjectCampaigns({ model, id }: { model: Model; id: string }) {
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="text-xs font-medium text-muted-foreground">“Can it show?”, last 7 days:</span>
+        <span className="text-xs font-medium text-muted-foreground">“Can it show?”, {(model.period?.name ?? "the last 7 days").replace(/^the /, "")}:</span>
         <Swatch color="var(--shown)">Shown</Swatch>
         <Swatch color="var(--lost-budget)">Missed: budget ran out</Swatch>
         <Swatch color="var(--lost-rank)">Missed: lost the auction (rank)</Swatch>
@@ -79,7 +79,7 @@ export function ProjectCampaigns({ model, id }: { model: Model; id: string }) {
       <DataTable rows={rows} columns={columns} csvName={`${id}-campaigns`} onRowClick={(r) => setOpen(r)} pageSize={20}
         initialSort={{ key: "cost", dir: "desc" }} />
       <Explain>
-        Spend, conversions and costs are since {drange(w.since?.from, w.since?.to) || "the start of the data"}; “Can it show?” and “Spent / day” are the last 7 days ({drange(w.last7?.from, w.last7?.to) || "–"}).
+        Spend, conversions and costs are since {drange(w.since?.from, w.since?.to) || "the start of the data"}; “Can it show?” and “Spent / day” are {model.period?.name ?? "the last 7 days"} ({drange(w.last7?.from, w.last7?.to) || "–"}).
         The bar shows, out of all the searches the campaign could have appeared on, how many it was shown on (green), missed because the budget ran out (amber), and missed because its ad ranked too low (red).
         Status rules: <b className="font-medium text-foreground">Held back by budget</b> = missed 20% or more for budget; <b className="font-medium text-foreground">Losing auctions</b> = missed 40% or more for rank; <b className="font-medium text-foreground">Uses N% of budget</b> = spent under 30% of its budget; <b className="font-medium text-foreground">Missing brand searches</b> = a brand campaign shown on under 80%. Click a campaign for its daily chart.
       </Explain>
@@ -110,7 +110,7 @@ function CampaignSheet({ c, model, onClose }: { c: Campaign | null; model: Model
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">Last 7 days ({drange(w.last7?.from, w.last7?.to) || "–"})</div>
+          <div className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">{(model.period?.name ?? "the last 7 days").replace(/^the /, "")} ({drange(w.last7?.from, w.last7?.to) || "–"})</div>
           <div className="grid grid-cols-2 gap-3">
             <MiniStat label="Shown on" value={pct(s7?.is_pct)} sub="of the searches it could enter" tone="good" />
             <MiniStat label="Missed: budget" value={pct(s7?.lost_budget_pct)} sub="the daily budget ran out" tone={(s7?.lost_budget_pct ?? 0) >= 20 ? "warn" : undefined} />
@@ -137,7 +137,7 @@ function CampaignSheet({ c, model, onClose }: { c: Campaign | null; model: Model
             <Fact label="Bidding">{c.bid_strategy || "–"}</Fact>
             <Fact label="Budget now">{inr(c.budget_now)} a day</Fact>
             <Fact label="Target cost per conversion">{c.target_cpa_now ? inr(c.target_cpa_now) : "none set"}</Fact>
-            <Fact label="Spent per day, last 7 days">{inr(s7?.cost_per_day)} <span className="font-normal text-muted-foreground">· {pct(s7?.budget_use)} of budget</span></Fact>
+            <Fact label={`Spent per day, ${(model.period?.name ?? "the last 7 days").replace(/^the /, "")}`}>{inr(s7?.cost_per_day)} <span className="font-normal text-muted-foreground">· {pct(s7?.budget_use)} of budget</span></Fact>
             <Fact label={`Spend since ${drange(w.since?.from, w.since?.to) || "the start"}`}>{inr(c.since?.cost)}</Fact>
             <Fact label="Google conversions (leads)">{n1(c.since?.conv)}</Fact>
             <Fact label={<span className="inline-flex items-center gap-1">“All conversions” <Tip content="Google's wider count of every conversion action. Only “Google conversions” above are leads."><Info className="size-3.5" /></Tip></span>}>

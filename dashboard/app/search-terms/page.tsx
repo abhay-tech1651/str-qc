@@ -4,6 +4,7 @@ import { getData, hasData } from "@/lib/store";
 import { dlong, drange } from "@/lib/format";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { SearchTermsView } from "@/components/search-terms-view";
+import { periodData, periodModel } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Search terms" };
@@ -22,7 +23,7 @@ export default async function SearchTermsPage({ searchParams }: { searchParams: 
     );
   }
   const sp = await searchParams;
-  const { model, review } = getData();
+  const { model, review } = (await periodData());
   const days = model.data.search_terms?.days ?? [];
   if (!days.length) {
     return (

@@ -143,9 +143,10 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
     // a search terms report has no Day column: one covering several days cannot be split into days, so it is refused
     const period = text.replace(/^\uFEFF/, "").split(/\r?\n/)[1] ?? "";
     const ends = period.split(" - ").map((x) => x.trim()).filter(Boolean);
-    if (ends.length === 2 && ends[0] !== ends[1]) {
+    const hasDay = /^Day[\t,]Search term/m.test(text.slice(0, 3000));
+    if (ends.length === 2 && ends[0] !== ends[1] && !hasDay) {
       return { name, kind, rows: 0, first_day: null, last_day: null, skipped: true,
-        note: `this report covers several days (${period.trim()}); download one day at a time so each day's numbers stay right` };
+        note: `this report covers several days (${period.trim()}); in Google Ads add Segment › Time › Day before downloading, so each day's numbers stay right` };
     }
   }
   const stale = staleSnapshot(kind, rows, exportedMs);
@@ -290,7 +291,7 @@ export const downloadsDir = () => path.join(os.homedir(), "Downloads");
 export const inboxDir = () => path.join(ROOT, "inbox");
 
 /* ---------------------------------------------------------------- the model, rebuilt only when data changes */
-let cache: { key: string; model: Model; review: ReviewRow[] } | null = null;
+const cache = new Map<string, { key: string; model: Model; review: ReviewRow[] }>();
 
 function dataKey(): string {
   const parts = [...TABLES.map((t) => tablePath(t)), filesPath, path.join(DATA, "projects.json")].map((p) => {
@@ -314,14 +315,70 @@ export function config(): Record<string, unknown> {
   return cfg;
 }
 
-export function getData(): { model: Model; review: ReviewRow[] } {
-  const key = dataKey();
-  if (cache && cache.key === key) return cache;
+/* ---------------------------------------------------------------- the period filter */
+export type Period = { key: string; from: string; to: string } | null;
+export const PERIOD_KEYS = ["all", "last7", "last14", "last30", "month", "lastmonth"] as const;
+
+const addDay = (d: string, n: number) => {
+  const [y, m, dd] = d.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, dd + n)).toISOString().slice(0, 10);
+};
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The last day with complete data: the newest campaign or search-term day, never today. */
+export function lastCompleteDay(): string {
+  const yesterday = addDay(todayIST(), -1);
+  const days = [...readTable("campaign_days"), ...readTable("search_terms")].map((r) => String(r.day ?? "")).filter((d) => ISO.test(d));
+  const max = days.sort().pop() ?? yesterday;
+  return max < yesterday ? max : yesterday;
+}
+
+/** A period key ("last14", "month", "custom:2026-11-01:2026-11-12", ...) as dates; "all" or anything unknown is null. */
+export function resolvePeriod(key: string | undefined | null): Period {
+  const k = String(key ?? "all");
+  const last = lastCompleteDay();
+  const n = /^last(7|14|30)$/.exec(k);
+  if (n) return { key: k, from: addDay(last, -(Number(n[1]) - 1)), to: last };
+  if (k === "month") return { key: k, from: `${last.slice(0, 8)}01`, to: last };
+  if (k === "lastmonth") {
+    const end = addDay(`${last.slice(0, 8)}01`, -1);
+    return { key: k, from: `${end.slice(0, 8)}01`, to: end };
+  }
+  const c = /^custom:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/.exec(k);
+  if (c && c[1] <= c[2]) return { key: k, from: c[1], to: c[2] < last ? c[2] : last };
+  return null;
+}
+
+const PERIOD_NAME: Record<string, string> = { last7: "the last 7 days", last14: "the last 14 days", last30: "the last 30 days", month: "this month so far", lastmonth: "last month" };
+
+/**
+ * The model for a period. With a period, the agency sheet and the search terms are cut to its days, and the engine's
+ * "last 7 days" becomes the period (compared with the same number of days just before). Without one, nothing changes.
+ */
+export function getData(period: Period = null): { model: Model; review: ReviewRow[] } {
+  const key = `${dataKey()}|${period ? `${period.from}:${period.to}` : "all"}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
   const T: Record<string, unknown[]> = {};
   for (const t of TABLES) T[t] = readTable(t);
-  const { model, review } = buildModel(T, config(), todayIST());
-  cache = { key, model: model as Model, review: review as ReviewRow[] };
-  return cache;
+  const cfg = config();
+  if (period) {
+    const inP = (r: unknown) => { const d = String((r as { day?: unknown }).day ?? ""); return d >= period.from && d <= period.to; };
+    T.search_terms = T.search_terms.filter(inP);
+    T.agency_calls = T.agency_calls.filter(inP);
+    cfg.period = { from: period.from, to: period.to };
+  }
+  const { model, review } = buildModel(T, cfg, todayIST());
+  const m = model as Model;
+  const w = m.windows.last7;
+  const days = w && w.from && w.to ? Math.round((Date.parse(w.to) - Date.parse(w.from)) / 86400000) + 1 : 7;
+  m.period = period
+    ? { key: period.key, from: period.from, to: period.to, name: PERIOD_NAME[period.key] ?? "the chosen days", prev: `the ${days} days before` }
+    : { key: "all", from: null, to: null, name: "the last 7 days", prev: "the 7 days before" };
+  const entry = { key, model: m, review: review as ReviewRow[] };
+  if (cache.size > 12) cache.clear();
+  cache.set(key, entry);
+  return entry;
 }
 
 export const getModel = () => getData().model;

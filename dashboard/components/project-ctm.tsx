@@ -45,7 +45,7 @@ export function ProjectCtm({ model }: { model: Model }) {
     <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MiniStat label="Budget now" value={inr(ctm.budget_now)} sub="a day" />
-        <MiniStat label="Actually spent, last 7 days" value={inr(camp?.last7?.cost_per_day)} sub={`a day · ${pct(camp?.last7?.budget_use)} of the budget`} tone={(camp?.last7?.budget_use ?? 100) < 50 ? "warn" : undefined} />
+        <MiniStat label={`Actually spent, ${(model.period?.name ?? "the last 7 days").replace(/^the /, "")}`} value={inr(camp?.last7?.cost_per_day)} sub={`a day · ${pct(camp?.last7?.budget_use)} of the budget`} tone={(camp?.last7?.budget_use ?? 100) < 50 ? "warn" : undefined} />
         <MiniStat label="Target cost per conversion" value={ctm.target_cpa_now ? inr(ctm.target_cpa_now) : "none"} sub={camp?.bid_strategy || ""} />
         <MiniStat label="Searches it could enter / day" value={n0(last?.eligible_per_day)}
           sub={first && last && first !== last ? `was ${n0(first.eligible_per_day)} in ${drange(first.start, first.end)}` : "estimate"}

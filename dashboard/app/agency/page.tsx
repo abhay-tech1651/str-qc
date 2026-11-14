@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader, EmptyState, Explain, PageHeader, ProjectTag
 import { StatCard } from "@/components/blocks";
 import { ByDayChart, LagChart, OutcomeLegend } from "@/components/agency-charts";
 import { AgencyTabs, type AgencyTab } from "@/components/agency-tabs";
+import { periodData, periodModel } from "@/lib/period";
 
 /* kept here too: values exported from a client module cannot be read on the server */
 const AGENCY_TABS: readonly AgencyTab[] = ["excludes", "adds", "nonegative", "risky", "blocked", "conflicts", "leaks"];
@@ -40,7 +41,7 @@ export default async function AgencyPage({ searchParams }: { searchParams: Promi
   const rawTab = Array.isArray(sp.tab) ? sp.tab[0] : sp.tab;
   const initialTab: AgencyTab = (AGENCY_TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as AgencyTab) : "excludes";
 
-  const m = getModel();
+  const m = (await periodModel());
   const a = m.agency;
   const e = a.excludes;
   const ad = a.adds;

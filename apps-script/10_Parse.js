@@ -257,7 +257,8 @@ function parseSearchTerms(text) {
   }
   if (hi < 0) return [];
   var sep = lines[hi].indexOf('\t') >= 0 ? '\t' : ',';
-  var body = lines.slice(hi).filter(function (l) { return l.trim() !== '' && l.indexOf('Total') !== 0; });
+  // total lines start with 'Total', or with an empty Day cell then 'Total' when the report is segmented by day
+  var body = lines.slice(hi).filter(function (l) { return l.trim() !== '' && l.replace(/^[	,]+/, '').indexOf('Total') !== 0; });
   var rows = parseDelimited_(body.join('\n'), sep);
   var head = rows[0] || [];
   return parseRowsToObjects_(rows).map(function (r) {
@@ -277,7 +278,7 @@ function parseSearchTerms(text) {
       cost: parseNum_(parseCol_(r, head, 'Cost', '0')),
       conv: parseNum_(parseCol_(r, head, 'Conversions', '0'))
     };
-  });
+  }).filter(function (x) { return !(/^total:/.test(x.term) && !x.campaign); }); // a day-segmented report repeats Google's totals for each day
 }
 
 /** '5 Nov 2026, 18:30:12' -> '2026-11-05T18:30:12', null if it does not parse. */

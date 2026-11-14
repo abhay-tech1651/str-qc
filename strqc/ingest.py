@@ -192,7 +192,8 @@ def read_search_terms(path: Path) -> pd.DataFrame:
         "cost": df.get("Cost", "0").map(_num),
         "conv": df.get("Conversions", "0").map(_num),
     })
-    return out
+    # a day-segmented report repeats Google's totals for each day
+    return out[~(out["term"].str.startswith("total:") & (out["campaign"] == ""))].reset_index(drop=True)
 
 
 def read_changes(path: Path) -> pd.DataFrame:

@@ -164,6 +164,16 @@ test('parseAgencyTab: header detection, title date, totals skipped, decision tit
   assert.deepStrictEqual(P(E.parseAgencyTab('9 Oct', [['a'], ['b']])), []);
 });
 
+test('parseAgencyTab: a mistyped Status header still gives the decisions (column left of Negative Broad)', () => {
+  const head = ['Search term', 'Match type', 'Campaign', 'Ad group', 'Cost', 'Cost / conv.', 'k', 'Negative Broad', 'County Comments'];
+  const rows = P(E.parseAgencyTab('16 Nov 2026', [head, ['puri builders', 'Phrase match', 'C', 'G', 100, 0, 'Exclude', '"puri builders"', 'exclude']]));
+  assert.strictEqual(rows[0].decision, 'Exclude');
+  assert.strictEqual(rows[0].neg_term, '"puri builders"');
+  // a Google report column left of Negative Broad is never read as the decision
+  const noStatus = ['Search term', 'Match type', 'Campaign', 'Ad group', 'Cost', 'Cost / conv.', 'Negative Broad'];
+  assert.strictEqual(P(E.parseAgencyTab('16 Nov 2026', [noStatus, ['x', 'Exact match', 'C', 'G', 5, '12.5', 'x']]))[0].decision, '');
+});
+
 /* ---------------- real data parity (local only) ---------------- */
 
 const HAVE = fixture.exists('tables.json');

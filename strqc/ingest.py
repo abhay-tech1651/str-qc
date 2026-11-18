@@ -243,6 +243,12 @@ def _cell_text(v) -> str:
     return str(v)
 
 
+# Columns Google's search terms report brings into an agency tab; never taken as the decision column.
+AGENCY_REPORT_COLS = {"search term", "match type", "added/excluded", "campaign", "ad group", "keyword", "keywords",
+                      "currency code", "trueview avg. cpv", "avg. cpm", "clicks", "impr.", "ctr", "avg. cpc", "cost",
+                      "campaign type", "conv. rate", "conversions", "cost / conv.", "county comments", "county comment"}
+
+
 def read_sheet(path: Path, kind: str) -> pd.DataFrame:
     """Agency sheet: decision from the Status column. Personal sheet: yellow fill on the search term = exclude."""
     import openpyxl
@@ -257,6 +263,12 @@ def read_sheet(path: Path, kind: str) -> pd.DataFrame:
         if hi is None:
             continue
         H = {str(c.value).strip().lower(): j for j, c in enumerate(rows[hi]) if c.value}
+        # the decision column is the one just left of "Negative Broad"; when its header was mistyped (the 16 Nov 2026
+        # tab says "k"), read it from there, unless that header is one of Google's own report columns
+        if "status" not in H and H.get("negative broad", 0) > 0:
+            left = str(rows[hi][H["negative broad"] - 1].value or "").strip().lower()
+            if left not in AGENCY_REPORT_COLS:
+                H["status"] = H["negative broad"] - 1
 
         def g(r, *keys):
             for k in keys:

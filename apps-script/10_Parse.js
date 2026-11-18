@@ -445,6 +445,11 @@ function parseTabDate_(title, values) {
  * ingest.read_sheet(kind='roi_sheet') for one tab: values is a 2-D array as Range.getValues() returns it.
  * Returns agency_calls rows ([] when the tab has no date or no 'Match type' header row).
  */
+/** Columns Google's search terms report brings into an agency tab; never taken as the decision column. */
+var AGENCY_REPORT_COLS_ = ['search term', 'match type', 'added/excluded', 'campaign', 'ad group', 'keyword', 'keywords',
+  'currency code', 'trueview avg. cpv', 'avg. cpm', 'clicks', 'impr.', 'ctr', 'avg. cpc', 'cost', 'campaign type',
+  'conv. rate', 'conversions', 'cost / conv.', 'county comments', 'county comment'];
+
 function parseAgencyTab(title, values) {
   values = values || [];
   var day = parseTabDate_(title, values);
@@ -461,6 +466,12 @@ function parseAgencyTab(title, values) {
   if (hi < 0) return [];
   var H = Object.create(null), hr = values[hi];
   for (var c = 0; c < hr.length; c++) if (parseTruthy_(hr[c])) H[parseStr_(hr[c]).trim().toLowerCase()] = c;
+  // the decision column is the one just left of "Negative Broad"; when its header was mistyped (the 16 Nov 2026 tab
+  // says "k"), read it from there, unless that header is one of Google's own report columns
+  if (!('status' in H) && 'negative broad' in H && H['negative broad'] > 0) {
+    var left = parseTruthy_(hr[H['negative broad'] - 1]) ? parseStr_(hr[H['negative broad'] - 1]).trim().toLowerCase() : '';
+    if (AGENCY_REPORT_COLS_.indexOf(left) < 0) H['status'] = H['negative broad'] - 1;
+  }
 
   function g(r) {
     for (var k = 1; k < arguments.length; k++) {

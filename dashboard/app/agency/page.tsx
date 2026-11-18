@@ -58,7 +58,7 @@ export default async function AgencyPage({ searchParams }: { searchParams: Promi
       <PageHeader
         eyebrow="Agency QC"
         title="Said vs done"
-        description={<>Every Add and Exclude the agency wrote in its STR sheet{sheet ? ` (${drange(sheet.from, sheet.to)})` : ""}, checked against what actually changed in Google Ads{ch ? ` (change history ${drange(ch.from, ch.to)})` : ""}. The agency gets {a.grace_days} {plural(a.grace_days, "day")} before a call counts as late.</>}
+        description={<>Every Add and Exclude the agency wrote in its STR sheet{sheet ? ` (${drange(sheet.from, sheet.to)})` : ""}, checked against what actually changed in Google Ads{ch ? ` (change history ${drange(ch.from, [ch.to, a.last_change_day].filter(Boolean).sort().pop() ?? ch.to)})` : ""}. The agency gets {a.grace_days} {plural(a.grace_days, "day")} before a call counts as late.</>}
       />
 
       {!checked ? (

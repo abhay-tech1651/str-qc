@@ -121,10 +121,12 @@ function hashFiles(paths) {
 }
 
 function npm(argv) {
-  // npm is a .cmd file on Windows, which Node only runs through a shell; every argument here is a fixed word
+  // npm is a .cmd file on Windows, which Node only runs through a shell; every argument here is a fixed word.
+  // CI=1 keeps npm and Next.js from stopping to ask questions (such as an upgrade prompt) that nobody is there to answer.
+  const env = { ...process.env, CI: "1" };
   const r = isWin
-    ? spawnSync(`npm ${argv.join(" ")}`, { cwd: DASH, stdio: "inherit", shell: true })
-    : spawnSync("npm", argv, { cwd: DASH, stdio: "inherit" });
+    ? spawnSync(`npm ${argv.join(" ")}`, { cwd: DASH, stdio: "inherit", shell: true, env })
+    : spawnSync("npm", argv, { cwd: DASH, stdio: "inherit", env });
   if (r.status !== 0) fail(`"npm ${argv.join(" ")}" did not finish. Check the internet connection and start again.`);
 }
 

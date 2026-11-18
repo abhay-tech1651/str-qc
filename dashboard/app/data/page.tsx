@@ -75,7 +75,9 @@ export default async function DataPage() {
     name: String(f.name ?? ""), kind: String(f.kind ?? "unknown"), rows: Number(f.rows) || 0,
     first_day: f.first_day ?? null, last_day: f.last_day ?? null, loaded_at: String(f.loaded_at ?? ""), note: f.note ?? "",
   }));
-  const coverage: CoverageRow[] = (m?.coverage ?? []).map((c) => ({
+  // days before the agency sheet's first tab have nothing to compare, so they are not counted as mismatches
+  const sheetFrom = m?.data?.agency_sheet?.from ?? "";
+  const coverage: CoverageRow[] = (m?.coverage ?? []).filter((c) => !sheetFrom || c.day >= sheetFrom).map((c) => ({
     day: c.day, report_rows: c.report_rows, report_cost: c.report_cost, sheet_rows: c.sheet_rows, sheet_cost: c.sheet_cost, cost_matches: !!c.cost_matches,
   }));
   const mismatch = coverage.filter((c) => !c.cost_matches).length;

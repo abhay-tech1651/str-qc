@@ -129,7 +129,7 @@ export default async function OverviewPage() {
       </Section>
 
       <p className="mt-10 text-xs leading-relaxed text-muted-foreground">
-        Data: campaigns {drange(m.data.campaign_days?.from, m.data.campaign_days?.complete_through) || "not imported"} · search terms {drange(m.data.search_terms?.from, m.data.search_terms?.to) || "–"} · agency sheet {drange(m.data.agency_sheet?.from, m.data.agency_sheet?.to) || "–"} · change history {drange(m.data.changes?.from, m.data.changes?.to) || "not imported"}. “Google conversions” are counted by Google Ads, not qualified leads from the CRM.
+        Data: campaigns {drange(m.data.campaign_days?.from, m.data.campaign_days?.complete_through) || "not imported"} · search terms {drange(m.data.search_terms?.from, m.data.search_terms?.to) || "–"} · agency sheet {drange(m.data.agency_sheet?.from, m.data.agency_sheet?.to) || "–"} · change history {drange(m.data.changes?.from, [m.data.changes?.to, m.agency?.last_change_day].filter(Boolean).sort().pop()) || "not imported"}. “Google conversions” are counted by Google Ads, not qualified leads from the CRM.
       </p>
     </>
   );

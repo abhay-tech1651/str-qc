@@ -96,7 +96,7 @@ export function IssueEvidence({ fix, model }: { fix: Fix; model: Model }) {
         <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">The rows behind this</div>
         <Badge tone="muted">{n0(rows.length)} rows{total && sortKey === "cost" ? ` · ${inr(total)}` : ""}</Badge>
       </div>
-      <DataTable rows={rows} columns={cols} pageSize={8} csvName={`${fix.project}-${fix.type}`} initialSort={sortKey ? { key: sortKey, dir: "desc" } : undefined} />
+      <DataTable rows={rows} columns={cols} pageSize={25} csvName={`${fix.project}-${fix.type}`} initialSort={sortKey ? { key: sortKey, dir: "desc" } : undefined} />
       {note ? <p className="mt-2 text-[12px] text-muted-foreground">{note}</p> : null}
     </div>
   );

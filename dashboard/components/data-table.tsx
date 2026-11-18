@@ -15,6 +15,18 @@ export interface Column<T> {
   sortable?: boolean;
 }
 
+/** Rows per page the viewer can pick; the choice is remembered on this computer for every table. */
+const SIZES = [10, 25, 50, 100, 250] as const;
+const SIZE_KEY = "qc_rows_per_page";
+function savedSize(): number | null {
+  try {
+    const n = Number(window.localStorage.getItem(SIZE_KEY));
+    return SIZES.includes(n as (typeof SIZES)[number]) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 function csvCell(v: unknown): string {
   let s = v === null || v === undefined ? "" : String(v);
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // never let a spreadsheet run a search term as a formula
@@ -22,7 +34,7 @@ function csvCell(v: unknown): string {
 }
 
 export function DataTable<T extends Record<string, unknown>>({
-  rows, columns, pageSize = 10, searchable = true, csvName, onRowClick, empty = "Nothing here.", initialSort, toolbar,
+  rows, columns, pageSize = 25, searchable = true, csvName, onRowClick, empty = "Nothing here.", initialSort, toolbar,
 }: {
   rows: T[]; columns: Column<T>[]; pageSize?: number; searchable?: boolean; csvName?: string;
   onRowClick?: (row: T) => void; empty?: React.ReactNode; initialSort?: { key: string; dir: "asc" | "desc" }; toolbar?: React.ReactNode;
@@ -30,6 +42,13 @@ export function DataTable<T extends Record<string, unknown>>({
   const [q, setQ] = React.useState("");
   const [sort, setSort] = React.useState(initialSort ?? null);
   const [page, setPage] = React.useState(0);
+  const [size, setSizeState] = React.useState(Math.max(pageSize, 25));
+  React.useEffect(() => { const n = savedSize(); if (n) setSizeState(n); }, []);
+  const setSize = (n: number) => {
+    setSizeState(n);
+    setPage(0);
+    try { window.localStorage.setItem(SIZE_KEY, String(n)); } catch { /* private window: keep it for this page only */ }
+  };
   const val = React.useCallback((c: Column<T>, r: T) => (c.value ? c.value(r) : (r[c.key] as string | number | null | undefined)), []);
 
   const filtered = React.useMemo(() => {
@@ -52,8 +71,8 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [rows, q, sort, columns, val]);
 
   React.useEffect(() => setPage(0), [q, sort, rows]);
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const shown = filtered.slice(page * pageSize, page * pageSize + pageSize);
+  const pages = Math.max(1, Math.ceil(filtered.length / size));
+  const shown = filtered.slice(page * size, page * size + size);
 
   const download = () => {
     const text = [columns.map((c) => csvCell(c.label)).join(","), ...filtered.map((r) => columns.map((c) => csvCell(val(c, r))).join(","))].join("\n");
@@ -82,16 +101,16 @@ export function DataTable<T extends Record<string, unknown>>({
           </div>
         </div>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className={cn("overflow-auto rounded-xl border bg-card", size > 25 && "max-h-[75vh]")}>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="border-b">
               {columns.map((c) => {
                 const canSort = c.sortable !== false;
                 const active = sort?.key === c.key;
                 return (
                   <th key={c.key} scope="col" style={c.width ? { width: c.width } : undefined}
-                    className={cn("whitespace-nowrap px-4 py-2.5 text-xs font-medium text-muted-foreground", c.align === "right" ? "text-right" : "text-left")}>
+                    className={cn("sticky top-0 z-10 whitespace-nowrap bg-muted px-4 py-2.5 text-xs font-medium text-muted-foreground", c.align === "right" ? "text-right" : "text-left")}>
                     {canSort ? (
                       <button type="button" className={cn("inline-flex items-center gap-1 hover:text-foreground", active && "text-foreground")}
                         onClick={() => setSort(active && sort?.dir === "desc" ? { key: c.key, dir: "asc" } : { key: c.key, dir: "desc" })}>
@@ -120,9 +139,16 @@ export function DataTable<T extends Record<string, unknown>>({
           </tbody>
         </table>
       </div>
-      {pages > 1 ? (
-        <div className="mt-3 flex items-center justify-end gap-2 text-xs text-muted-foreground">
-          <span className="tabular">Page {page + 1} of {pages}</span>
+      {filtered.length > SIZES[0] ? (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
+          <label className="flex items-center gap-1.5">
+            Rows per page
+            <select value={size} onChange={(e) => setSize(Number(e.target.value))} aria-label="Rows per page"
+              className="h-8 rounded-md border bg-background px-2 text-xs text-foreground">
+              {SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <span className="tabular">{(page * size + 1).toLocaleString("en-IN")}–{Math.min(filtered.length, (page + 1) * size).toLocaleString("en-IN")} of {filtered.length.toLocaleString("en-IN")}</span>
           <Button variant="outline" size="icon" className="size-8" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} aria-label="Previous page"><ChevronLeft /></Button>
           <Button variant="outline" size="icon" className="size-8" onClick={() => setPage((p) => Math.min(pages - 1, p + 1))} disabled={page >= pages - 1} aria-label="Next page"><ChevronRight /></Button>
         </div>

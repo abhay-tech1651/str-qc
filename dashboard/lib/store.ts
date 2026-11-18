@@ -81,6 +81,43 @@ export type ImportResult = { name: string; kind: string; rows: number; first_day
  * are incomplete, so they are left out and arrive with the next report.
  */
 const snapshotsPath = path.join(DATA, "snapshots.json");
+
+const SHARE_FIELDS = ["is_pct", "lost_budget_pct", "lost_rank_pct", "top_is_pct", "abs_top_is_pct"] as const;
+
+/** Split one line of a Google Ads export (tab-separated, or comma-separated with quotes). */
+function splitLine(line: string, sep: string): string[] {
+  if (sep === "\t") return line.split("\t").map((c) => c.trim());
+  const out: string[] = [];
+  let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === sep) { out.push(cur.trim()); cur = ""; } else cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+/** Campaigns in a campaign report whose "Campaign type" is not Search, with their type. Empty when there is no such column. */
+export function nonSearchCampaigns(text: string): Map<string, string> {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
+  const hi = lines.findIndex((l) => /(^|[\t,])"?Campaign type"?([\t,]|$)/.test(l) && /(^|[\t,])"?Campaign"?([\t,]|$)/.test(l));
+  const out = new Map<string, string>();
+  if (hi < 0) return out;
+  const sep = lines[hi].includes("\t") ? "\t" : ",";
+  const head = splitLine(lines[hi], sep);
+  const ci = head.indexOf("Campaign"), ti = head.indexOf("Campaign type");
+  for (const l of lines.slice(hi + 1)) {
+    if (!l.trim()) continue;
+    const c = splitLine(l, sep);
+    const name = c[ci] ?? "", type = c[ti] ?? "";
+    if (name && type && type !== "Search" && !/^total/i.test(c[0] ?? "")) out.set(name, type);
+  }
+  return out;
+}
+
 type Snapshots = Record<string, { day: string; exported_ms: number; name: string }>;
 
 /**
@@ -116,7 +153,7 @@ const MONTHS = ["january", "february", "march", "april", "may", "june", "july", 
  * but never the day it was downloaded (that day was not over yet). Used for the change history, whose rows stop at the last change.
  */
 export function periodEnd(text: string, exportedOn: string): string | null {
-  const line = text.replace(/^﻿/, "").split(/\r?\n/)[1] ?? "";
+  const line = text.replace(/^\uFEFF/, "").split(/\r?\n/)[1] ?? "";
   const m = /(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s*$/.exec(line.trim());
   if (!m) return null;
   const mi = MONTHS.indexOf(m[2].toLowerCase());
@@ -164,15 +201,34 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
         note: "this report has no Campaign column (it was downloaded from inside one campaign); download the Search terms report for all campaigns instead" };
     }
     const named = rows.filter((r) => String(r.campaign || "").trim());
-    keep = named.filter((r) => Number(r.clicks) > 0); // the review covers searches that got a click
+    const clicked = named.filter((r) => Number(r.clicks) > 0); // the review covers searches that got a click
+    // the day the report was downloaded was not finished yet: its rows would show a part day as if it were whole
+    keep = clicked.filter((r) => !r.day || String(r.day) < exportedOn);
     const parts = [];
     if (named.length < rows.length) parts.push(`${rows.length - named.length} rows without a campaign`);
-    if (keep.length < named.length) parts.push(`${named.length - keep.length} rows with no clicks`);
+    if (clicked.length < named.length) parts.push(`${named.length - clicked.length} rows with no clicks`);
+    if (keep.length < clicked.length) parts.push(`${clicked.length - keep.length} rows for ${exportedOn} or later (that day was not complete when the report was exported)`);
     if (parts.length) note = `left out ${parts.join(" and ")}`;
   }
   if (kind === "campaign_days") {
-    keep = rows.filter((r) => String(r.day) < exportedOn);
-    if (keep.length < rows.length) note = `left out ${rows.length - keep.length} rows for ${exportedOn} or later (that day was not complete when the report was exported)`;
+    // this dashboard checks search campaigns: Performance Max, Display and Video rows would add their spend and
+    // conversions to the projects, so a report downloaded for all campaign types keeps only its Search rows
+    const other = nonSearchCampaigns(text);
+    const search = rows.filter((r) => !other.has(String(r.campaign)));
+    const whole = search.filter((r) => String(r.day) < exportedOn);
+    // a report without the impression-share columns must not wipe the shares an earlier report brought for the same day
+    const old = new Map(readTable("campaign_days").map((r) => [`${r.day}|${r.campaign}`, r]));
+    keep = whole.map((r) => {
+      const o = old.get(`${r.day}|${r.campaign}`);
+      if (!o) return r;
+      const out = { ...r };
+      for (const k of SHARE_FIELDS) if ((out[k] === null || out[k] === undefined) && o[k] !== null && o[k] !== undefined) out[k] = o[k];
+      return out;
+    });
+    const parts = [];
+    if (search.length < rows.length) parts.push(`${rows.length - search.length} rows of ${other.size} campaigns that are not search campaigns (${[...new Set([...other.values()])].join(", ")})`);
+    if (whole.length < search.length) parts.push(`${search.length - whole.length} rows for ${exportedOn} or later (that day was not complete when the report was exported)`);
+    if (parts.length) note = `left out ${parts.join(" and ")}`;
   }
   const t = kind as Table;
   writeJson(tablePath(t), mergeRows(t, readTable(t), keep));

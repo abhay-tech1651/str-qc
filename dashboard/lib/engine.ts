@@ -54,3 +54,13 @@ export function buildModel(T: Record<string, unknown[]>, cfg: unknown, asOf: str
   const out = engine().buildModel(T, cfg, asOf);
   return { model: plain<unknown>(out.model), review: plain<unknown[]>(out.review) };
 }
+
+/** The engine's word helpers, for checks written in TypeScript (lib/negatives-core.ts). */
+export function engineHelpers() {
+  const E = engine();
+  return {
+    tok: (s: string) => plain<string[]>(E.tok(s)),
+    parseNegative: (s: string) => plain<[string, string[]]>(E.parseNegative(s)),
+    blocks: (m: string, w: string[], q: string[]) => !!E.blocks(m, w, q),
+  };
+}

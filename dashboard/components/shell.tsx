@@ -8,6 +8,7 @@ import { Command } from "cmdk";
 import { PeriodPicker } from "./period-picker";
 import {
   AlertTriangle, BookOpen, ClipboardCheck, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, Upload,
+  Ban,
 } from "lucide-react";
 import { Button, Tip } from "./ui";
 import { cn } from "@/lib/format";
@@ -22,6 +23,7 @@ const NAV = [
   ] },
   { group: "Agency QC", items: [
     { href: "/agency", label: "Said vs done", icon: ClipboardCheck },
+    { href: "/negatives", label: "Negatives as written", icon: Ban },
     { href: "/search-terms", label: "Search terms", icon: Search },
   ] },
   { group: "Performance", items: [

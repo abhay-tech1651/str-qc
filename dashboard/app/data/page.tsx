@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { CalendarClock, ShieldCheck } from "lucide-react";
-import { agencySheetId, getModel, hasData, loadedFiles } from "@/lib/store";
+import { agencySheetId, getModel, hasData, loadedFiles, readInventory } from "@/lib/store";
 import { drange, dshort, n0, plural } from "@/lib/format";
 import type { Model } from "@/lib/types";
 import { Badge, Card, CardBody, CardHeader, Explain, PageHeader, Section } from "@/components/ui";
 import { DataImport } from "@/components/data-import";
+import { readOnly } from "@/lib/guard";
 import { CoverageTable, FilesTable, type CoverageRow, type FileRow } from "@/components/data-tables";
 import { periodData, periodModel } from "@/lib/period";
 
@@ -43,6 +44,12 @@ function sources(m: Model | null): Source[] {
       how: "Export from Google Ads", cadence: "Once a week", state: any(cd?.to) },
     { name: "Keyword report", from: d?.keywords?.from ?? null, to: d?.keywords?.to ?? null, how: "Export from Google Ads", cadence: "Once a week", state: any(d?.keywords?.to) },
     { name: "Auction insights", from: d?.auction?.from ?? null, to: d?.auction?.to ?? null, how: "Export from Google Ads", cadence: "Once a month", state: any(d?.auction?.to) },
+    (() => {
+      const inv = readInventory();
+      return { name: "All negatives (negative keyword report)", from: inv?.as_of ?? null, to: inv?.as_of ?? null,
+        extra: inv ? `${n0(inv.negatives.length)} negatives, ${n0(inv.lists.length)} shared-list links` : undefined,
+        how: "Export from Google Ads", cadence: "Once a week", state: any(inv?.as_of) } as Source;
+    })(),
   ];
 }
 
@@ -88,7 +95,7 @@ export default async function DataPage() {
       <PageHeader
         eyebrow="Data"
         title="Import data"
-        description={<>Each morning, export two reports from Google Ads (search terms and change history), then press <C>Import new reports from Downloads</C>. The agency&apos;s STR sheet is read straight from Google.</>}
+        description={<>Each morning, download two reports from Google Ads (search terms and change history), then press <C>Import new reports from Downloads</C>. The agency&apos;s STR sheet is read straight from Google.</>}
         actions={m ? (
           behind.length
             ? <Badge tone="warn" className="px-3 py-1 text-[13px]"><CalendarClock className="size-3.5" />{behind.length} daily {plural(behind.length, "source")} behind</Badge>
@@ -97,32 +104,36 @@ export default async function DataPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-5">
-        <div className="xl:col-span-3"><DataImport agencyLinkSet={!!agencySheetId()} /></div>
+        <div className="xl:col-span-3">{readOnly()
+          ? <Card className="p-5 text-sm leading-relaxed text-muted-foreground"><b className="font-medium text-foreground">This is the shared, read-only copy.</b> Data is imported on the owner&apos;s computer and arrives here within about 10 minutes of “Save data to GitHub”. The table below shows how recent each source is.</Card>
+          : <DataImport agencyLinkSet={!!agencySheetId()} />}</div>
         <Card className="xl:col-span-2">
-          <CardHeader title="Your morning routine" description="About five minutes. Do steps 1–3 every day." />
+          <CardHeader title="What to download, and how" description="Steps 1–2 every morning (about 3 minutes). Account level: All campaigns, not inside one campaign." />
           <CardBody className="pt-4">
             <ol className="space-y-4">
-              <Step n={1} title="Download yesterday's search terms">
-                In Google Ads, open <C>Campaigns › Insights and reports › Search terms</C>, set the date to <C>yesterday</C>, then <C>Download › CSV</C>.
+              <Step n={1} title="Search terms (every morning)">
+                <C>Campaigns › Insights and reports › Search terms</C>. Dates: <C>yesterday</C> (overlapping days are fine). <C>Segment › Time › Day</C>.
+                Columns: Search term, Match type, Added/Excluded, Campaign, Ad group, Keyword, Clicks, Impr., Cost, Conversions. <C>Download › .csv</C>.
               </Step>
-              <Step n={2} title="Download the change history">
-                Open <C>Tools › Change history</C>, choose the <C>last 7 days</C>, then <C>Download › CSV</C>.
+              <Step n={2} title="Change history (every morning)">
+                <C>Campaigns › Change history</C>. Dates: <C>1st of the month – today</C>, no filters. <C>Download › .csv</C>.
               </Step>
-              <Step n={3} title="Import">
-                Press <C>Import new reports from Downloads</C> on this page. Every page updates by itself.
+              <Step n={3} title="Import, then refresh the sheet">
+                Press <C>Import new reports from Downloads</C>, then <C>Refresh the agency sheet</C>. Every page updates by itself.
               </Step>
             </ol>
             <div className="mt-5 space-y-3 border-t pt-4">
               <div>
                 <div className="flex items-center gap-2 text-sm font-medium">Once a week <Badge tone="info">weekly</Badge></div>
-                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-                  <C>Campaign report by day</C> with impression-share columns: in <C>Report editor</C>, make a table of Campaign, Day, Impr., Clicks, Cost, Conversions, Search impr. share, Search lost IS (budget) and Search lost IS (rank).
-                  Also the <C>Search keywords</C> report with Quality Score, Ad relevance and Landing page exp. columns.
-                </p>
+                <ul className="mt-1 list-disc space-y-1.5 pl-4 text-[13px] leading-relaxed text-muted-foreground">
+                  <li><C>Campaigns › Campaigns</C>, last 7 days, <C>Segment › Time › Day</C>. Columns: Campaign, Campaign type, Campaign status, Status, Status reasons, Budget, Bid strategy type, Target CPA, Impr., Clicks, Cost, Conversions, All conv., Search impr. share, Search lost IS (budget), Search lost IS (rank), Search top IS, Search abs. top IS.</li>
+                  <li><C>Audiences, keywords and content › Search keywords</C>, 1st of the month – yesterday, status <C>All but removed</C>, no segment. Columns: Keyword, Match type, Campaign, Ad group, Status, Status reasons, Clicks, Impr., Cost, Conversions, Quality Score, Ad relevance, Landing page exp., Search impr. share, Search lost IS (rank).</li>
+                  <li><C>Search keywords › Negative search keywords</C> (all campaigns). <C>Download › .csv</C>. This is every negative in the account, however old.</li>
+                </ul>
               </div>
               <div>
                 <div className="flex items-center gap-2 text-sm font-medium">Once a month <Badge tone="muted">monthly</Badge></div>
-                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground"><C>Auction insights</C> for the search campaigns, downloaded as CSV.</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground"><C>Insights and reports › Auction insights</C> for the search campaigns, downloaded as CSV.</p>
               </div>
             </div>
           </CardBody>
@@ -181,8 +192,8 @@ export default async function DataPage() {
       <Card className="mt-10 flex items-start gap-3 p-5">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-good" />
         <div>
-          <div className="text-sm font-medium">Your data stays on this computer</div>
-          <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">Imported reports are saved as files in this folder. They leave it only when you run “Save data to GitHub”, and then only inside one file locked with your passphrase, so GitHub never sees the data itself. The only other outside request is downloading the agency&apos;s STR sheet from Google when you press “Refresh the agency sheet”.</p>
+          <div className="text-sm font-medium">How the data is kept safe</div>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">Imported reports are saved as files in this folder. They leave it only when you run “Save data to GitHub”, and then only inside one file locked with your passphrase, so GitHub never sees the data itself. The only other outside request is downloading the agency&apos;s STR sheet from Google when you press “Refresh the agency sheet”. A shared copy for Bhavik runs only inside your private Tailscale network and can never import or change data (see docs/REMOTE_ACCESS.md).</p>
         </div>
       </Card>
     </>

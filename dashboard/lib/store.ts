@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildModel, defaultConfig, mergeRows, parseAgencyTab, parseExport } from "./engine";
+import { buildModel, defaultConfig, engineHelpers, mergeRows, parseAgencyTab, parseExport } from "./engine";
+import { isInventory, parseInventory, type Inventory } from "./neg-inventory-core";
 import type { LoadedFile, Model, ReviewRow } from "./types";
 
 /**
@@ -169,6 +170,7 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
   const sha = crypto.createHash("sha256").update(buf).digest("hex");
   if (loadedFiles().some((f) => f.sha === sha)) return { name, kind: "already loaded", rows: 0, first_day: null, last_day: null, skipped: true, note: "this exact file is already loaded" };
   const text = decodeText(buf);
+  if (isInventory(text)) return importInventory(name, text, sha, exportedOn, exportedMs);
   const { kind, rows } = parseExport(text);
   if (kind === "unknown" || !rows.length) {
     const head = text.slice(0, 3000);
@@ -237,6 +239,29 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
   const covers_to = kind === "changes" ? periodEnd(text, exportedOn) : null;
   recordFile({ name, kind, rows: keep.length, ...s, sha, note, ...(covers_to ? { covers_to } : {}) });
   return { name, kind, rows: keep.length, ...s, note };
+}
+
+/* ---------------------------------------------------------------- every negative in the account today */
+const inventoryPath = path.join(DATA, "negative_inventory.json");
+
+/** The last "Negative keyword report" loaded: every negative in the account when it was downloaded. */
+export function readInventory(): Inventory | null {
+  return readJson<Inventory | null>(inventoryPath, null);
+}
+
+/** The negative keyword report is a snapshot of the whole account: the newest download replaces the one before. */
+function importInventory(name: string, text: string, sha: string, exportedOn: string, exportedMs: number): ImportResult {
+  const prev = readInventory();
+  if (prev && (prev.exported_ms ?? 0) > exportedMs) {
+    recordFile({ name, kind: "negative_inventory", rows: 0, first_day: null, last_day: null, sha, note: `skipped: a newer negative keyword report is already loaded (${prev.name})` });
+    return { name, kind: "negative_inventory", rows: 0, first_day: null, last_day: null, skipped: true, note: `a newer negative keyword report is already loaded (${prev.name})` };
+  }
+  const inv = parseInventory(engineHelpers(), text, exportedOn, name);
+  if (!inv.negatives.length) return { name, kind: "unknown", rows: 0, first_day: null, last_day: null, note: "no negatives found in this negative keyword report" };
+  writeJson(inventoryPath, { ...inv, exported_ms: exportedMs });
+  const note = `${inv.negatives.length.toLocaleString("en-IN")} negatives and ${inv.lists.length} shared-list links, as of ${exportedOn}`;
+  recordFile({ name, kind: "negative_inventory", rows: inv.negatives.length, first_day: exportedOn, last_day: exportedOn, sha, note });
+  return { name, kind: "negative_inventory", rows: inv.negatives.length, first_day: exportedOn, last_day: exportedOn, note };
 }
 
 type CellValue = string | number | boolean | Date | null | undefined | { [k: string]: unknown };

@@ -6,6 +6,7 @@ export const KIND_LABEL: Record<string, string> = {
   keywords: "Keyword report",
   auction: "Auction insights",
   agency_sheet: "Agency STR sheet",
+  negative_inventory: "Negative keyword report",
   "already loaded": "Already loaded",
   unknown: "Not recognised",
 };

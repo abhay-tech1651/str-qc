@@ -10,7 +10,7 @@ import { Button, Input, Select } from "./ui";
 import { cn, drange } from "@/lib/format";
 
 const OPTIONS = [
-  { value: "all", label: "Default (last 7 days · all agency days)" },
+  { value: "all", label: "All days" },
   { value: "last7", label: "Last 7 days" },
   { value: "last14", label: "Last 14 days" },
   { value: "last30", label: "Last 30 days" },

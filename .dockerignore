@@ -1,0 +1,15 @@
+dashboard/node_modules
+dashboard/.next
+node_modules
+data
+inbox
+history
+backups
+vault
+deploy/secrets
+.git
+.venv
+*.csv
+*.xlsx
+*.sqlite
+.env*

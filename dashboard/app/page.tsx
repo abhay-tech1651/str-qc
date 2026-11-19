@@ -1,138 +1,181 @@
 import Link from "next/link";
-import { ArrowRight, Database } from "lucide-react";
-import { getModel, hasData } from "@/lib/store";
-import { change, drange, dshort, inr, lakh, n0, n1, pcolor, pct } from "@/lib/format";
-import { Button, Card, CardBody, CardHeader, EmptyState, Explain, PageHeader, ProjectTag, Section } from "@/components/ui";
-import { IssueList, ProjectCard, StatCard } from "@/components/blocks";
-import { StackedDaily } from "@/components/charts";
-import { periodData, periodModel } from "@/lib/period";
+import { ArrowRight, CheckCircle2, CircleAlert, Database, Presentation } from "lucide-react";
+import { hasData } from "@/lib/store";
+import { getBrief } from "@/lib/brief";
+import { change, cn, dshort, inr, lakh, n0, n1, pct } from "@/lib/format";
+import { Badge, Button, Card, CardHeader, EmptyState, Explain, PageHeader, Section } from "@/components/ui";
+import { ProjectCard, StatCard } from "@/components/blocks";
+import { periodModel } from "@/lib/period";
 
-export default async function OverviewPage() {
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Today" };
+
+const time = (ts: string) => (ts.length >= 16 ? `${dshort(ts.slice(0, 10))}, ${ts.slice(11, 16)}` : ts);
+
+export default async function TodayPage() {
   if (!hasData()) {
     return (
       <>
         <PageHeader eyebrow="Welcome" title="Let's load your Google Ads data" description="The dashboard fills itself from Google Ads exports and the agency's STR sheet. It takes about a minute." />
         <EmptyState icon={<Database className="size-8" />} title="No data yet">
-          Open <Link href="/data" className="font-medium text-primary underline-offset-2 hover:underline">Import data</Link> and press “Import from Downloads”.
+          Open <Link href="/data" className="font-medium text-primary underline-offset-2 hover:underline">Data</Link> and press “Import new reports from Downloads”.
         </EmptyState>
       </>
     );
   }
-  const m = (await periodModel());
-  const pn = m.period?.name ?? "the last 7 days", pp = m.period?.prev ?? "the 7 days before", pns = pn.replace(/^the /, "");
+  const m = await periodModel();
+  const b = getBrief();
+  const o = b.on_time;
   const a = m.account;
-  const w = m.windows;
-  const hasCamp = m.campaigns.length > 0;
-  const e = m.agency.excludes;
-  const top = m.fixes.filter((f) => f.severity !== "low");
-  const last7 = w.last7;
-  const spendBy = m.projects.map((p) => ({ name: p.name.replace(" County", ""), id: p.id, cost: m.project_stats[p.id].last7.cost })).sort((x, y) => y.cost - x.cost);
-  const daily = a.daily.map((d) => ({ day: d.day, ...d.by_project }));
-  const keys = m.projects.map((p) => ({ key: p.id, label: p.name.replace(" County", ""), color: pcolor(p.id) }));
+  const behind = b.freshness.filter((f) => !f.ok);
+  const recentDays = b.days.slice(0, 7);
 
   return (
     <>
       <PageHeader
-        eyebrow={`Daily briefing · ${dshort(m.as_of)}`}
-        title="Search ads at a glance"
-        description={hasCamp
-          ? <>In {pn} ({drange(last7?.from, last7?.to)}) search ads cost <b className="font-semibold text-foreground">{lakh(a.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(a.last7.conv)}</b> Google conversions at <b className="font-semibold text-foreground">{inr(a.last7.cpa)}</b> each. Since {dshort(w.since?.from)}: {lakh(a.since.cost)} for {n1(a.since.conv)} conversions.</>
-          : <>The agency sheet is loaded, so the search-term checks are live. Spend, conversions and keyword quality appear once a campaign report is imported.</>}
-        actions={<Button asChild variant="outline"><Link href="/issues">All issues <ArrowRight /></Link></Button>}
+        eyebrow={`Today · ${dshort(b.today)}`}
+        title="What needs your attention"
+        description={<>The agency&apos;s sheet runs to <b className="font-semibold text-foreground">{dshort(b.sheet_to)}</b> and Google Ads changes to <b className="font-semibold text-foreground">{dshort(b.last_change)}</b>. The agency has {b.grace} days to put each Exclude call into Google Ads; after that it counts as late.</>}
+        actions={<Button asChild><Link href="/meeting"><Presentation /> Meeting proof</Link></Button>}
       />
 
+      {/* how fresh each source is */}
+      <Card className={cn("mb-6 p-4", behind.length ? "border-[color:var(--warn)]/40" : "")}>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
+          <span className="flex items-center gap-1.5 font-medium">
+            {behind.length ? <CircleAlert className="size-4 text-[color:var(--warn)]" /> : <CheckCircle2 className="size-4 text-good" />}
+            {behind.length ? `${behind.length} ${behind.length === 1 ? "source needs" : "sources need"} a new download` : "All data is up to date"}
+          </span>
+          {b.freshness.map((f) => (
+            <span key={f.source} className="flex items-center gap-1.5 text-muted-foreground" title={`${f.how} (${f.cadence})`}>
+              <span className={cn("size-2 rounded-full", f.ok ? "bg-good" : "bg-[color:var(--warn)]")} />
+              {f.source}: <span className={cn("tabular", f.ok ? "text-foreground" : "font-medium text-[color:var(--warn)]")}>{f.last ? `to ${dshort(f.last)}` : "not loaded"}</span>
+            </span>
+          ))}
+          {behind.length ? <Link href="/data" className="ml-auto text-primary underline-offset-2 hover:underline">How to download →</Link> : null}
+        </div>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={`Spend, ${pns}`} value={hasCamp ? lakh(a.last7.cost) : "–"} delta={change(a.last7.cost, a.prev7.cost)} invert
-          sub={hasCamp ? `vs ${lakh(a.prev7.cost)} ${pp}` : "campaign data not imported"} spark={a.daily.map((d) => d.cost)} />
-        <StatCard label={`Google conversions, ${pns}`} value={hasCamp ? n1(a.last7.conv) : "–"} delta={change(a.last7.conv, a.prev7.conv)}
-          sub={hasCamp ? `${n1(a.prev7.conv)} ${pp} · counted by Google, not CRM` : ""} spark={a.daily.map((d) => d.conv)} color="var(--good)" />
-        <StatCard label="Cost per conversion" value={hasCamp ? inr(a.last7.cpa) : "–"} delta={change(a.last7.cpa, a.prev7.cpa)} invert
-          sub={hasCamp ? `${inr(a.since.cpa)} since ${dshort(w.since?.from)}` : ""} />
-        <StatCard label="Agency Exclude calls applied" value={m.agency.changes_from ? pct(e.applied_pct) : "–"}
-          tone={!m.agency.changes_from ? undefined : (e.applied_pct ?? 0) >= 95 ? "good" : "warn"}
-          sub={m.agency.changes_from ? `${n0(e.overdue)} never applied · ${inr(e.overdue_cost)} spent on them` : "import a change history to check"} />
+        <StatCard label="Exclude calls put in on time" value={pct(o.on_time_pct)} tone={(o.on_time_pct ?? 0) >= 80 ? "good" : "bad"}
+          sub={<>{n0(o.on)} on time · {n0(o.late)} late · {n0(o.never)} never, of {n0(o.judged)} calls past their {b.grace} days</>} />
+        <StatCard label="Never put in" value={n0(o.never)} tone={o.never ? "bad" : "good"}
+          sub={<>{inr(o.never_cost)} was spent on those searches · {n0(o.waiting)} more still inside their {b.grace} days</>} />
+        <StatCard label="Our keywords switched off by negatives" value={b.inventory ? n0(b.inventory.blocks_keywords) : "–"} tone={b.inventory?.blocks_keywords ? "bad" : undefined}
+          sub={b.inventory ? <>campaign-wide negatives in the account on {dshort(b.inventory.as_of)} that block enabled keywords</> : "load the negative keyword report"} />
+        <StatCard label={`Spend, ${dshortRange(m.windows.last7?.from, m.windows.last7?.to)}`} value={lakh(a.last7.cost)} delta={change(a.last7.cost, a.prev7.cost)} invert
+          sub={<>{n1(a.last7.conv)} Google conversions at {inr(a.last7.cpa)} each (Google&apos;s count, not CRM leads)</>} />
       </div>
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-3">
+      <div className="mt-6 grid gap-4 xl:grid-cols-5">
+        <Card className="overflow-x-auto xl:col-span-3">
+          <CardHeader title="Each sheet day: did the Exclude calls go in?" description={`The last 7 sheet days. "Late" means it went in after ${b.grace} days.`}
+            action={<Button asChild variant="ghost" size="sm"><Link href="/agency">Every call <ArrowRight /></Link></Button>} />
+          <table className="mt-3 w-full text-sm">
+            <thead><tr className="border-y bg-muted/50 text-xs text-muted-foreground">
+              <th className="px-4 py-2 text-left font-medium">Sheet day</th>
+              <th className="px-3 py-2 text-right font-medium">Calls</th>
+              <th className="px-3 py-2 text-right font-medium">On time</th>
+              <th className="px-3 py-2 text-right font-medium">Late</th>
+              <th className="px-3 py-2 text-right font-medium">Not done</th>
+              <th className="px-3 py-2 text-right font-medium">Still waiting</th>
+              <th className="px-4 py-2 text-left font-medium">Went in on</th>
+            </tr></thead>
+            <tbody>
+              {recentDays.map((d) => (
+                <tr key={d.day} className="border-b last:border-0">
+                  <td className="px-4 py-2 font-medium">{dshort(d.day)}</td>
+                  <td className="px-3 py-2 text-right tabular">{n0(d.calls)}</td>
+                  <td className="px-3 py-2 text-right tabular text-good">{d.on_time || "–"}</td>
+                  <td className={cn("px-3 py-2 text-right tabular", d.late && "font-medium text-[color:var(--warn)]")}>{d.late || "–"}</td>
+                  <td className={cn("px-3 py-2 text-right tabular", d.not_done && "font-medium text-bad")}>{d.not_done || "–"}</td>
+                  <td className="px-3 py-2 text-right tabular text-muted-foreground">{d.waiting || "–"}</td>
+                  <td className="px-4 py-2 text-[13px] text-muted-foreground">{d.answered_on.map(dshort).join(", ") || "nothing yet"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <Explain>Read across: a sheet day&apos;s calls should go in on that day or the next. A date far to the right means the agency batched them later.</Explain>
+          <div className="h-4" />
+        </Card>
+
         <Card className="xl:col-span-2">
-          <CardHeader title="Needs attention" description="Most urgent first. Click any line for what happened and what to do." action={<Button asChild variant="ghost" size="sm"><Link href="/issues">See all {m.fixes.length}</Link></Button>} />
-          <div className="px-2 pb-2 pt-1"><IssueList fixes={top} model={m} limit={7} /></div>
-        </Card>
-        <Card>
-          <CardHeader title={`Where ${pn} went`} description={hasCamp ? `${lakh(a.last7.cost)} across ${m.projects.length} projects` : "No campaign data yet"} />
-          <CardBody className="pt-2">
-            {hasCamp ? (
-              <div className="space-y-3">
-                {spendBy.map((s) => {
-                  const share = a.last7.cost ? (100 * s.cost) / a.last7.cost : 0;
-                  return (
-                    <Link key={s.id} href={`/projects/${s.id}`} className="block rounded-lg p-1 hover:bg-muted/50">
-                      <div className="flex items-center justify-between text-sm">
-                        <ProjectTag name={s.name} color={pcolor(s.id)} className="text-[13px] text-foreground" />
-                        <span className="tabular font-medium">{lakh(s.cost)} <span className="font-normal text-muted-foreground">· {pct(share)}</span></span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${share}%`, background: pcolor(s.id) }} /></div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : <p className="text-sm text-muted-foreground">Import a campaign report to see spend by project.</p>}
-          </CardBody>
+          <CardHeader title="Changed in Google Ads since yesterday" description={`Change history from ${dshort(b.yesterday)}, grouped. The newest change is ${dshort(b.last_change)}.`} />
+          <div className="px-5 pb-5 pt-3">
+            {b.since_yesterday.length ? (
+              <ul className="divide-y">
+                {b.since_yesterday.map((g) => (
+                  <li key={g.what} className="flex items-baseline justify-between gap-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium">{g.what}</div>
+                      <div className="text-xs text-muted-foreground">by {g.by} · {g.campaigns} {g.campaigns === 1 ? "campaign" : "campaigns"} · {time(g.first)} – {time(g.last)}</div>
+                    </div>
+                    <span className="tabular text-base font-semibold">{n0(g.count)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-muted-foreground">No changes in the change history since {dshort(b.yesterday)}. Download a fresh change history if you expected some.</p>}
+          </div>
         </Card>
       </div>
 
-      <Section title="Projects" description={`The same view for every project: ${pns}, the trend since the start of the data, and the most important thing to fix.`}>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {m.projects.map((p) => <ProjectCard key={p.id} model={m} id={p.id} />)}
+      <Section title="What to raise with the agency" description="Strongest first. Each point has the numbers and where to check it in Google Ads; the Meeting proof page has the full lists."
+        action={<Button asChild variant="outline" size="sm"><Link href="/meeting">Open meeting proof <ArrowRight /></Link></Button>}>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {b.claims.slice(0, 6).map((c, i) => (
+            <Link key={c.id} href={`/meeting#${c.id}`} className="block">
+              <Card className="h-full p-4 transition-colors hover:bg-muted/40">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tabular">{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={c.tone}>{c.number}</Badge>
+                    </div>
+                    <div className="mt-1.5 text-sm font-medium leading-snug">{c.title}</div>
+                    <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{c.detail}</p>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          ))}
         </div>
       </Section>
 
-      {hasCamp ? (
-        <Section title="Daily spend by project" description={`Search campaigns, ${drange(w.since?.from, w.since?.to)}. Today is left out until its data is complete.`}>
-          <Card className="p-5">
-            <div className="mb-3 flex flex-wrap gap-4">{keys.map((k) => <ProjectTag key={k.key} name={k.label} color={k.color} />)}</div>
-            <StackedDaily data={daily} keys={keys} height={280} />
-            <Explain>A sudden step up or down usually follows a change someone made (a budget, a bid strategy, a batch of keywords). Check “Said vs done” and the campaign pages before blaming the market.</Explain>
-          </Card>
-        </Section>
-      ) : null}
-
-      <Section title="Agency report card" description={`Every Add and Exclude in the agency's STR sheet, checked against the Google Ads change history. The agency gets ${m.agency.grace_days} days before a call counts as late.`}
-        action={<Button asChild variant="ghost" size="sm"><Link href="/agency">Details <ArrowRight /></Link></Button>}>
+      <Section title="By project" description="On time is the share of Exclude calls put in within the grace days, of those that are due.">
         <Card className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-muted/50 text-xs text-muted-foreground">
               <th className="px-4 py-2.5 text-left font-medium">Project</th>
               <th className="px-4 py-2.5 text-right font-medium">Exclude calls</th>
-              <th className="px-4 py-2.5 text-right font-medium">Applied</th>
-              <th className="px-4 py-2.5 text-right font-medium">Never applied</th>
+              <th className="px-4 py-2.5 text-right font-medium">On time</th>
+              <th className="px-4 py-2.5 text-right font-medium">Late</th>
+              <th className="px-4 py-2.5 text-right font-medium">Never put in</th>
               <th className="px-4 py-2.5 text-right font-medium">Spent on those</th>
-              <th className="px-4 py-2.5 text-right font-medium">Adds not added</th>
+              <th className="px-4 py-2.5 text-right font-medium">Still waiting</th>
             </tr></thead>
             <tbody>
-              {m.projects.map((p) => {
-                const r = m.agency.by_project[p.id];
-                return (
-                  <tr key={p.id} className="border-b last:border-0">
-                    <td className="px-4 py-2.5"><ProjectTag name={p.name} color={pcolor(p.id)} className="text-[13px] text-foreground" /></td>
-                    <td className="px-4 py-2.5 text-right tabular">{n0(r?.excludes)}</td>
-                    <td className="px-4 py-2.5 text-right tabular">{pct(r?.applied_pct)}</td>
-                    <td className="px-4 py-2.5 text-right tabular">{n0(r?.overdue)}</td>
-                    <td className="px-4 py-2.5 text-right tabular">{inr(r?.overdue_cost)}</td>
-                    <td className="px-4 py-2.5 text-right tabular">{n0(r?.adds_overdue)}</td>
-                  </tr>
-                );
-              })}
+              {b.by_project.map((p) => (
+                <tr key={p.id} className="border-b last:border-0">
+                  <td className="px-4 py-2.5"><Link href={`/projects/${p.id}`} className="font-medium hover:underline">{p.name}</Link></td>
+                  <td className="px-4 py-2.5 text-right tabular">{n0(p.calls)}</td>
+                  <td className="px-4 py-2.5 text-right tabular">{pct(p.on_time_pct)}</td>
+                  <td className="px-4 py-2.5 text-right tabular">{n0(p.late)}</td>
+                  <td className="px-4 py-2.5 text-right tabular">{n0(p.not_done)}</td>
+                  <td className="px-4 py-2.5 text-right tabular">{inr(p.not_done_cost)}</td>
+                  <td className="px-4 py-2.5 text-right tabular">{n0(p.waiting)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </Card>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {m.projects.map((p) => <ProjectCard key={p.id} model={m} id={p.id} />)}
+        </div>
       </Section>
-
-      <p className="mt-10 text-xs leading-relaxed text-muted-foreground">
-        Data: campaigns {drange(m.data.campaign_days?.from, m.data.campaign_days?.complete_through) || "not imported"} · search terms {drange(m.data.search_terms?.from, m.data.search_terms?.to) || "–"} · agency sheet {drange(m.data.agency_sheet?.from, m.data.agency_sheet?.to) || "–"} · change history {drange(m.data.changes?.from, [m.data.changes?.to, m.agency?.last_change_day].filter(Boolean).sort().pop()) || "not imported"}. “Google conversions” are counted by Google Ads, not qualified leads from the CRM.
-      </p>
     </>
   );
 }
 
-export const dynamic = "force-dynamic";
+function dshortRange(a?: string | null, b?: string | null) {
+  return a && b ? `${dshort(a)} – ${dshort(b)}` : "last 7 days";
+}

@@ -14,13 +14,17 @@ no open port, and every connection is encrypted end to end. Only people you invi
 | Cost | free | a small always-on machine: an office PC with Docker, or a cloud VM (about ₹500–900 a month) |
 | Setup | 10 minutes | 30 minutes, once |
 
-Both need a free Tailscale account (yours) and Bhavik invited to it. Create the account yourself at tailscale.com; the
-dashboard never asks for or stores Google or Tailscale passwords.
+Both need a free Tailscale account (yours). Create it yourself at tailscale.com; the dashboard never asks for or stores
+Google or Tailscale passwords. **Share only the dashboard machine with Bhavik** (Tailscale admin › Machines › the machine ›
+⋯ › Share): Bhavik signs in to their own free Tailscale account and sees that one machine, not your laptop or anything
+else on your tailnet. Do not invite Bhavik as a user of your tailnet: by default every user of a tailnet can reach every
+machine on it.
 
 ## A. From your laptop
 
-1. Install Tailscale on the laptop and sign in. Invite Bhavik (Tailscale admin › Users › Invite); Bhavik installs
-   Tailscale on their laptop or phone and accepts.
+1. Install Tailscale on the laptop and sign in. Share the laptop with Bhavik (see above); Bhavik installs Tailscale on
+   their laptop or phone and accepts. Note: sharing the laptop shares every service it offers on Tailscale, which is
+   one more reason to prefer B.
 2. In Tailscale admin › DNS, turn on **MagicDNS** and **HTTPS certificates**.
 3. Add your laptop's Tailscale name to the dashboard's allowed names. Open PowerShell in the str-qc folder:
    `setx QC_ALLOWED_HOSTS "your-laptop.<tailnet>.ts.net"`, then close and reopen the window.
@@ -33,19 +37,29 @@ dashboard never asks for or stores Google or Tailscale passwords.
 The container holds code only. At start it downloads `vault/data.qcvault` (encrypted) from the private GitHub repository
 with a **read-only** token, unlocks it inside the container, and checks for a newer saved copy every 10 minutes.
 
-1. On the always-on machine install Docker and copy this repository there (`git clone`).
-2. Create three secret files in `deploy/secrets/` (the folder is ignored by git; on Linux run `chmod 600` on them):
-   - `github_token`: GitHub › Settings › Developer settings › Fine-grained tokens › new token, only repository
-     `str-qc`, permission **Contents: Read-only**, expiry 90 days. Nothing else.
-   - `qc_passphrase`: the data passphrase you type for "Save data to GitHub".
-   - `ts_authkey`: Tailscale admin › Settings › Keys › Generate auth key (reusable off, tag optional).
-3. In `docker-compose.yml`, replace `<tailnet>` in `QC_ALLOWED_HOSTS` with your tailnet name (Tailscale admin › DNS).
-4. Run `docker compose up -d --build`. After a minute, open `https://county-qc.<tailnet>.ts.net` from any device on the tailnet.
-5. Daily: import on your laptop as now, then **Save data to GitHub**. The shared copy shows the new data within 10 minutes.
+**Before you start, on the laptop:** run **Save data to GitHub** once, so the code and the latest data are on GitHub.
+
+1. **The machine.** An office PC that stays on (Windows with Docker Desktop, BitLocker on) or a small Linux cloud server
+   with an encrypted disk. Install Docker and Git, then `git clone https://github.com/abhay-tech1651/str-qc.git` and open
+   the `str-qc` folder. Use your own GitHub sign-in for the clone, not the token below.
+2. **Tailscale.** In Tailscale admin › DNS turn on **MagicDNS** and **HTTPS certificates**. Note the tailnet name shown
+   there (for example `tail1234ab.ts.net`). In Settings › Keys, generate an **auth key** (not reusable, not ephemeral).
+3. **GitHub token.** GitHub › Settings › Developer settings › Fine-grained tokens › Generate new token: repository access
+   **only str-qc**, permission **Contents: Read-only**, nothing else, expiry 90 days. Put a reminder in your calendar.
+4. **Setup.** In the str-qc folder run `powershell -ExecutionPolicy Bypass -File deploy\setup.ps1` (Windows) or
+   `sh deploy/setup.sh` (Linux). It asks for the tailnet name, the token, the data passphrase (twice) and the auth key,
+   hides what you type, and writes them to `.env` and `deploy/secrets/` (both ignored by git), readable by you only.
+5. **Start.** `docker compose up -d --build`, then `docker compose logs -f qc` until it says **data updated**. If it says
+   *GitHub refused the token* or *could not unlock*, run the setup again with the right value.
+6. **Share.** Open `https://county-qc.<tailnet>.ts.net` yourself first. Then Tailscale admin › Machines › **county-qc** ›
+   ⋯ › **Share**, and send Bhavik the invite link. Bhavik installs Tailscale, accepts, and opens the same address.
+7. **Daily.** Import on your laptop as now, then **Save data to GitHub**. The shared copy shows it within 10 minutes.
+   After a code update: `git pull` and `docker compose up -d --build` on the machine.
 
 ## What protects the data
 
-- **No public address.** Only devices signed in to your tailnet can reach it; Tailscale encrypts every connection (WireGuard).
+- **No public address.** Only your devices and the people you shared the machine with can reach it; Tailscale encrypts
+  every connection (WireGuard). Remove a share in Tailscale admin and access ends at once.
 - **Allowed names only.** The dashboard refuses any request whose host is not 127.0.0.1, localhost or a name in
   `QC_ALLOWED_HOSTS`, so another website cannot read it through the browser.
 - **Read-only copy.** The shared copy refuses every import or change (`QC_READ_ONLY=1`); writes on the laptop are
@@ -54,8 +68,9 @@ with a **read-only** token, unlocks it inside the container, and checks for a ne
 - **Locked-down container.** Runs as a normal user, read-only file system except its data folder, no extra privileges.
 - **The trade-off of option B:** the always-on machine keeps the passphrase in a secret file so it can unlock the data
   by itself, and the unlocked data sits on that machine's disk. Use a machine only you control, with disk encryption
-  on (BitLocker or the cloud provider's encrypted disk). To cut access at once: revoke the GitHub token, remove the
-  device in Tailscale, or change the passphrase with `node scripts/vault.mjs save data --new-passphrase`.
+  on (BitLocker or the cloud provider's encrypted disk). To cut access at once: remove the share or the machine in
+  Tailscale, revoke the GitHub token, or change the passphrase with `node scripts/vault.mjs save data --new-passphrase`
+  (the shared copy then stops updating until you run the setup there again).
 
 ## Why not Kubernetes
 

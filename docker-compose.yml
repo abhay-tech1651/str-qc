@@ -1,5 +1,5 @@
 # County Search QC, shared privately with Tailscale (docs/REMOTE_ACCESS.md).
-#   docker compose up -d --build
+#   deploy/setup.ps1 (Windows) or sh deploy/setup.sh (Linux) once, then: docker compose up -d --build
 # No port is opened on the machine or the internet: the dashboard listens on 127.0.0.1 inside the Tailscale container's
 # network, and only devices signed in to your tailnet (you and the people you invite) can open https://county-qc.<tailnet>.ts.net
 services:
@@ -25,8 +25,8 @@ services:
       QC_REPO: abhay-tech1651/str-qc
       QC_SYNC_MINUTES: "10"
       QC_READ_ONLY: "1"
-      # the private name Tailscale gives this copy; replace <tailnet> with yours (Tailscale admin › DNS)
-      QC_ALLOWED_HOSTS: county-qc.<tailnet>.ts.net
+      # the private name Tailscale gives this copy; deploy/setup writes your tailnet name to .env (QC_TAILNET=...)
+      QC_ALLOWED_HOSTS: county-qc.${QC_TAILNET:?run deploy/setup.ps1 or deploy/setup.sh first}.ts.net
       QC_TOKEN_FILE: /run/secrets/github_token
       QC_PASSPHRASE_FILE: /run/secrets/qc_passphrase
     secrets: [github_token, qc_passphrase]

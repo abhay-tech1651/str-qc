@@ -39,8 +39,8 @@ with a **read-only** token, unlocks it inside the container, and checks for a ne
 
 **Before you start, on the laptop:** run **Save data to GitHub** once, so the code and the latest data are on GitHub.
 
-1. **The machine.** An office PC that stays on (Windows with Docker Desktop, BitLocker on) or a small Linux cloud server
-   with an encrypted disk. Install Docker and Git, then `git clone https://github.com/abhay-tech1651/str-qc.git` and open
+1. **The machine.** An office PC that stays on (see **Office PC** below: Docker runs inside Ubuntu there) or a small Linux
+   cloud server with an encrypted disk. Install Docker and Git, then `git clone https://github.com/abhay-tech1651/str-qc.git` and open
    the `str-qc` folder. Use your own GitHub sign-in for the clone, not the token below.
 2. **Tailscale.** In Tailscale admin › DNS turn on **MagicDNS** and **HTTPS certificates**. Note the tailnet name shown
    there (for example `tail1234ab.ts.net`). In Settings › Keys, generate an **auth key** (not reusable, not ephemeral).
@@ -55,6 +55,45 @@ with a **read-only** token, unlocks it inside the container, and checks for a ne
    ⋯ › **Share**, and send Bhavik the invite link. Bhavik installs Tailscale, accepts, and opens the same address.
 7. **Daily.** Import on your laptop as now, then **Save data to GitHub**. The shared copy shows it within 10 minutes.
    After a code update: `git pull` and `docker compose up -d --build` on the machine.
+
+### Office PC (Windows)
+
+**Use the free route: Docker Engine inside Ubuntu on WSL 2.** Docker Desktop needs a paid subscription at any company
+with 250 or more employees or $10 million or more in yearly revenue (docs.docker.com, Docker Desktop license). Docker
+Engine is open source (Apache 2.0) and costs nothing. Everything below runs on the office PC.
+
+1. **Check the PC.** Copy the str-qc folder there or download `deploy/office-pc-check.ps1` alone, open PowerShell **as
+   administrator** and run `powershell -ExecutionPolicy Bypass -File deploy\office-pc-check.ps1`. It only reads settings and
+   prints no names or secrets, so you can paste the result to Claude. Fix every **[needs]** line:
+   - **Disk encryption on.** Windows Pro: BitLocker. Windows Home has no BitLocker: turn on Settings › Privacy & security ›
+     Device encryption if it is listed, otherwise use a Pro PC. Keep the recovery key away from the PC.
+   - **Never sleep when plugged in** (Settings › System › Power). The screen may turn off; the PC must not sleep.
+   - **Windows Update active hours** set to office hours, so restarts happen at night.
+2. **Ubuntu.** As administrator: `wsl --install -d Ubuntu-24.04`, restart, open Ubuntu from the Start menu and create
+   its user name and password (that password stays on the PC; nobody else needs it).
+3. **Docker Engine and Git**, in the Ubuntu window (Docker's own instructions for Ubuntu):
+   ```sh
+   sudo apt-get update && sudo apt-get install -y ca-certificates curl git
+   sudo install -m 0755 -d /etc/apt/keyrings
+   sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+   sudo chmod a+r /etc/apt/keyrings/docker.asc
+   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+   sudo usermod -aG docker "$USER"
+   ```
+   Close Ubuntu and open it again, then `docker run --rm hello-world` should print *Hello from Docker!*.
+4. **The dashboard code**, in Ubuntu: `git clone https://github.com/abhay-tech1651/str-qc.git && cd str-qc`.
+   Keep it inside Ubuntu (`~/str-qc`), not under `/mnt/c`, so the secret files keep owner-only permissions.
+5. **Setup and start**, in Ubuntu in `~/str-qc`: `sh deploy/setup.sh`, then `docker compose up -d --build`, then
+   `docker compose logs -f qc` until it says **data updated** (steps 4 and 5 above).
+6. **Stay on after a restart.** In Windows PowerShell as administrator, in a copy of the str-qc folder:
+   `powershell -ExecutionPolicy Bypass -File deploy\office-pc-autostart.ps1`. It adds one scheduled task that starts Ubuntu
+   hidden each time you sign in; Docker then restarts the dashboard by itself. Leave the PC signed in and locked
+   (Windows key + L). After a restart someone must sign in once. Test it: restart, sign in, lock, open the dashboard
+   from your phone.
+7. **Share** the county-qc machine with Bhavik (step 6 above).
+
+Updating the code later, in Ubuntu: `cd ~/str-qc && git pull && docker compose up -d --build`.
 
 ## What protects the data
 

@@ -8,7 +8,7 @@ import { Command } from "cmdk";
 import { PeriodPicker } from "./period-picker";
 import {
   AlertTriangle, BookOpen, ClipboardCheck, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, Upload,
-  Ban, ListX, Presentation,
+  Ban, CalendarDays, ListChecks, ListX, Presentation,
 } from "lucide-react";
 import { Button, Tip } from "./ui";
 import { cn } from "@/lib/format";
@@ -16,11 +16,13 @@ import { cn } from "@/lib/format";
 export interface ShellProject { id: string; name: string; color: string; urgent: number }
 export interface ShellInfo { projects: ShellProject[]; fresh: string; issues: number; hasData: boolean; period: { key: string; from: string | null; to: string | null; last: string | null } }
 
-/** Five places to go. Each section has its own tabs at the top of the page (see SectionTabs). */
+/** Where to go: the first three answer "where did the money go and what is open"; the rest is detail. Sections have tabs (SectionTabs). */
 const NAV = [
-  { href: "/", label: "Today", icon: LayoutDashboard, desc: "What needs attention" },
+  { href: "/", label: "Overview", icon: LayoutDashboard, desc: "Where the money went" },
+  { href: "/fix", label: "Fix list", icon: ListChecks, desc: "What is still open, and where", badge: "issues" as const },
+  { href: "/searches", label: "Every search", icon: Search, desc: "Each search, its cost and status" },
   { href: "/meeting", label: "Meeting proof", icon: Presentation, desc: "Points with proof" },
-  { href: "/agency", label: "Agency check", icon: ClipboardCheck, desc: "Said vs done, negatives", badge: "issues" as const },
+  { href: "/agency", label: "Agency check", icon: ClipboardCheck, desc: "Day by day, said vs done, negatives" },
   { href: "/campaigns", label: "Performance", icon: Megaphone, desc: "Campaigns, keywords, searches" },
   { href: "/data", label: "Data", icon: Database, desc: "Import and help" },
 ];
@@ -28,6 +30,7 @@ const NAV = [
 /** The pages inside each section, shown as tabs above the page. */
 const SECTIONS: { nav: string; tabs: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] }[] = [
   { nav: "/agency", tabs: [
+    { href: "/daily", label: "Day by day", icon: CalendarDays },
     { href: "/agency", label: "Said vs done", icon: ClipboardCheck },
     { href: "/negatives", label: "Negatives as written", icon: Ban },
     { href: "/account-negatives", label: "All negatives in account", icon: ListX },
@@ -160,7 +163,7 @@ function CommandMenu({ info }: { info: ShellInfo }) {
             </div>
             <Command.List className="max-h-80 overflow-y-auto p-2">
               <Command.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">Nothing matches.</Command.Empty>
-              {[...NAV.slice(0, 2), ...SECTIONS.flatMap((x) => x.tabs)].map((it) => (
+              {[...NAV.slice(0, 4), ...SECTIONS.flatMap((x) => x.tabs)].map((it) => (
                 <Command.Item key={it.href} onSelect={() => go(it.href)} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm data-[selected=true]:bg-muted">
                   <it.icon className="size-4 text-muted-foreground" /> {it.label}
                 </Command.Item>

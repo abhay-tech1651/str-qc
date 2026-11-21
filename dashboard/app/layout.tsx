@@ -7,6 +7,7 @@ import { Shell, type ShellInfo } from "@/components/shell";
 import { hasData, lastCompleteDay } from "@/lib/store";
 import { dshort, pcolor } from "@/lib/format";
 import { periodKey, periodModel } from "@/lib/period";
+import { fixList, getLedger } from "@/lib/ledger";
 
 export const metadata: Metadata = {
   title: { default: "County Search QC", template: "%s · County Search QC" },
@@ -27,7 +28,8 @@ async function shellInfo(): Promise<ShellInfo> {
   return {
     projects: m.projects.map((p) => ({ id: p.id, name: p.name.replace(" County", ""), color: pcolor(p.id), urgent: urgent(p.id) })),
     fresh,
-    issues: m.fixes.filter((f) => f.severity === "high").length,
+    // the menu badge is the number of rows on the Fix list (sheet up to its default day)
+    issues: (() => { const led = getLedger(); return led ? fixList(led).length : 0; })(),
     hasData: true,
     period: { key, from: m.windows.last7?.from ?? null, to: m.windows.last7?.to ?? null, last: lastCompleteDay() },
   };

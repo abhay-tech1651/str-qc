@@ -69,6 +69,14 @@ Write **Leave** in the Status column instead of leaving it blank. A blank cell c
 
 ## 7. How to write the negative (the part that goes wrong most)
 
+**County's rule (owner, 22 Nov 2026): negate the search term itself, never a single word.** When a row is Exclude (and when County writes a comment on it), the negative column must hold the **full search term**, written as a phrase (`"pm awas gramin report"`) or exact (`[pm awas gramin report]`). A part of two or more of its words is fine when that part can only mean junk (`"pm awas"`). A single word in broad or phrase match (`-ivy`, `-107`, `-flat`, `-m`) blocks every search that contains it, in every combination, including searches we pay for; use one only when the word can never be part of a County search (for example `rent`, `pg`, `jobs`), and then put it in the shared list.
+
+What the dashboard checks every day against this rule:
+- **Overview › Done** counts how each blocked junk search is blocked: by its own full term (safe), by part of it, or only by one word. On 22 Nov: 1,512 by the full term, 61 by part, 53 by one word.
+- **Overview › Still to do** shows how the sheet writes its negatives: on 22 Nov, 879 of 1,924 Exclude calls gave a single word and 274 gave none (the 20 and 21 Nov tabs had almost all blank).
+- **Fix list › Junk searches still not blocked** always suggests the full search term as the negative, and says when the sheet wrote one word or nothing.
+- **Fix list › Negatives blocking searches we want** lists every negative in the account that also blocks a search that converted, that the sheet said to Add, or that is our keyword, with the junk searches to negate instead (for example `-prestige` in Ivory Competitor blocks "prestige 150 noida", 5 conversions, and the keyword "prestige sector 150 noida").
+
 1. **Use the smallest negative that removes the junk.** Prefer the project name as a phrase (`"skyline suites"`) over a single word (`skyline`).
 2. **Never** use a bare number (`-62`, `-24`, `-124`), or a single common property word (home, house, flat, project, society, villa, sector, city, new, greater) as a campaign-wide broad negative.
 3. **Pick the level on purpose and write it in the sheet:** ad group, campaign, or shared list.
@@ -111,3 +119,4 @@ Keep the current columns, and add: **Level** (ad group / campaign / shared list)
 
 - 0.1 (6 Nov 2026): first draft from the 15 Oct to 5 Nov data.
 - 0.2 (6 Nov 2026): project prices and configurations added; numbers re-checked against the change history from 1 Oct.
+- 0.3 (22 Nov 2026): County's rule "negate the full search term, never one word" added to section 7, with the dashboard checks that follow it.

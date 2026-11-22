@@ -54,6 +54,11 @@ test('buildLedger: one outcome per search, rupees add up, money after the call',
   assert.strictEqual(by['flats noida sector 150'].outcome, 'add_blocked', 'the ad-group negative "sector 150" blocks it in the only ad group it ran in');
   assert.strictEqual(by['gaur city flats'].outcome, 'not_reviewed', 'its only call is after the period');
   assert.ok(!by['after the period'], 'spend after the period is left out');
+  assert.strictEqual(by['ats pristine noida'].neg_written_kind, 'one_word', 'the sheet wrote one word, ats');
+  assert.strictEqual(by['rent flats noida'].block_kind, 'one_word', '-rent is a single broad word');
+  assert.strictEqual(by['flats noida sector 150'].block_kind, 'part', '"sector 150" is two of its words');
+  const costly = led.costly_negatives.map((n) => n.text);
+  assert.deepStrictEqual(costly, ['"sector 150"'], 'the negative that blocks a search the sheet said to Add');
   assert.strictEqual(led.total.cost, 575);
   const sum = Object.values(led.total.by).reduce((s, v) => s + v.cost, 0);
   assert.strictEqual(sum, led.total.cost, 'every rupee lands in exactly one outcome');

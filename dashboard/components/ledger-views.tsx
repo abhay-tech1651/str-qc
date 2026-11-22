@@ -134,15 +134,16 @@ export function FixView({ items, types, searches, labels, projects, init }: {
   const rows = items.filter((f) => f.type === type && (!project || f.project === project));
   const projName = (id: string) => projects.find((p) => p.id === id)?.name ?? id;
 
+  const perNeg = type === "keyword_blocked" || type === "neg_blocks_good";
   const columns: Column<FixItem>[] = [
     { key: "project", label: "Project", value: (f) => projName(f.project), render: (f) => <ProjectTag name={projName(f.project)} color={pcolor(f.project)} /> },
     { key: "where_c", label: "Campaign › ad group", value: (f) => `${lab(f.campaign)} › ${f.ad_group}`, render: (f) => <span className="block max-w-[230px] text-[12.5px] leading-snug">{lab(f.campaign)}{f.ad_group ? <span className="text-muted-foreground"> › {f.ad_group}</span> : null}</span> },
-    { key: "term", label: type === "keyword_blocked" ? "Our keywords it blocks" : "Search", render: (f) => <span className={cn("block max-w-[260px] leading-snug", type === "keyword_blocked" ? "text-[12.5px]" : "font-medium")}>{f.term}</span> },
+    { key: "term", label: type === "keyword_blocked" ? "Our keywords it blocks" : type === "neg_blocks_good" ? "Searches we want that it blocks" : "Search", render: (f) => <span className={cn("block max-w-[260px] leading-snug", perNeg ? "text-[12.5px]" : "font-medium")}>{f.term}</span> },
     { key: "todo", label: "What to do", render: (f) => <span className="block min-w-[220px] max-w-[320px] text-[13px] leading-snug">{f.todo}{f.note ? <span className="mt-0.5 block text-[12px] text-muted-foreground">{f.note}</span> : null}</span> },
     { key: "where", label: "Where in Google Ads", render: (f) => <span className="block max-w-[230px] break-words text-[12px] leading-snug text-muted-foreground">{f.where}</span> },
     { key: "cost", label: "Spent", align: "right", render: (f) => <span className="tabular">{f.cost ? inr(f.cost) : "–"}</span> },
-    ...(type === "results_blocked" || type === "keyword_blocked" ? [{ key: "conv", label: "Conv", align: "right" as const, render: (f: FixItem) => <span className="tabular">{n0(f.conv)}</span> }] : []),
-    { key: "since", label: type === "keyword_blocked" ? "Added" : "Sheet day", render: (f) => <span className="whitespace-nowrap text-[12.5px]">{f.since ? dshort(f.since) : "–"}</span> },
+    ...(type === "results_blocked" || perNeg ? [{ key: "conv", label: "Conv", align: "right" as const, render: (f: FixItem) => <span className="tabular">{n0(f.conv)}</span> }] : []),
+    { key: "since", label: perNeg ? "Added" : "Sheet day", render: (f) => <span className="whitespace-nowrap text-[12.5px]">{f.since ? dshort(f.since) : "–"}</span> },
   ];
 
   return (

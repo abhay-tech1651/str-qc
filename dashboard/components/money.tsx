@@ -70,6 +70,13 @@ export function OutcomeTag({ o }: { o: Outcome }) {
   );
 }
 
+const BLOCK_KIND: Record<string, string> = {
+  term: "By its own full search term: safe, it blocks nothing else.",
+  part: "By part of the search (two or more of its words).",
+  one_word: "Only by a single word: it also blocks every other search with that word. Better: negate the full search term.",
+};
+const WRITTEN: Record<string, string> = { term: "the full search term", part: "part of the search", one_word: "one word (County asks for the full term)", different: "words not in the search" };
+
 /** What is in Google Ads now, in words. */
 export function accountNow(s: Pick<Search, "blocked" | "blockers" | "is_keyword" | "lists">): string {
   if (s.blocked === "yes") return `Blocked by ${s.blockers.map((b) => `${b.text}${b.level === "ad group" ? ` (ad group ${b.ad_group})` : ""}`).join(", ")}`;
@@ -108,9 +115,9 @@ export function SearchDrawer({ s, onClose, label }: { s: Search | null; onClose:
           <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
             <dt className="text-muted-foreground">First seen</dt><dd>{dlong(s.first_day)}{s.last_day !== s.first_day ? `, last ${dlong(s.last_day)}` : ""}</dd>
             <dt className="text-muted-foreground">The sheet said</dt><dd>{s.verdict}{s.call_day ? ` (${dshort(s.call_day)} tab)` : ""}</dd>
-            {s.neg_written ? <><dt className="text-muted-foreground">Negative written</dt><dd className="font-mono text-[12.5px]">{s.neg_written}</dd></> : null}
+            {s.neg_written ? <><dt className="text-muted-foreground">Negative written</dt><dd><span className="font-mono text-[12.5px]">{s.neg_written}</span>{WRITTEN[s.neg_written_kind] ? <span className="text-muted-foreground"> · {WRITTEN[s.neg_written_kind]}</span> : null}</dd></> : s.verdict === "Exclude" ? <><dt className="text-muted-foreground">Negative written</dt><dd className="text-muted-foreground">None in the sheet</dd></> : null}
             {s.county_comment ? <><dt className="text-muted-foreground">County comment</dt><dd>{s.county_comment}</dd></> : null}
-            <dt className="text-muted-foreground">Google Ads now</dt><dd>{accountNow(s)}</dd>
+            <dt className="text-muted-foreground">Google Ads now</dt><dd>{accountNow(s)}{s.block_kind ? <span className={cn("block text-[12.5px]", s.block_kind === "one_word" ? "text-bad" : "text-muted-foreground")}>{BLOCK_KIND[s.block_kind]}</span> : null}</dd>
             {s.lists.length && s.blocked !== "yes" ? <><dt className="text-muted-foreground">Shared lists</dt><dd>{s.lists.join(", ")}: their contents are not loaded, so it may be blocked there.</dd></> : null}
             {s.cost_after_call > 0 ? <><dt className="text-muted-foreground">After the call</dt><dd>{inr(s.cost_after_call)} spent after the sheet said Exclude{s.cost_after_deadline > 0 ? `, ${inr(s.cost_after_deadline)} of it after the 3-day deadline` : ""}</dd></> : null}
             <dt className="text-muted-foreground">Matched by</dt><dd>{s.match_types.join(", ")}{s.keywords.length ? ` · keyword ${s.keywords.join(", ")}` : ""}</dd>

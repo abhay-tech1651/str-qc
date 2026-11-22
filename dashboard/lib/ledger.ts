@@ -45,7 +45,7 @@ export function getLedger(toParam?: string | null): Ledger | null {
 
 /* ------------------------------------------------------------------ the fix list: one row per thing to do, with where to do it */
 
-export type FixType = "junk_open" | "add_open" | "add_blocked" | "results_blocked" | "keyword_blocked" | "not_reviewed";
+export type FixType = "junk_open" | "add_open" | "add_blocked" | "neg_blocks_good" | "results_blocked" | "keyword_blocked" | "not_reviewed";
 export interface FixItem {
   type: FixType;
   id: string;
@@ -69,6 +69,7 @@ export const FIX_TYPES: { type: FixType; title: string; who: string; why: string
   { type: "junk_open", title: "Junk searches still not blocked", who: "Agency", why: "The sheet said Exclude, but no negative in the campaign or its ad group blocks the search, so it can keep costing money." },
   { type: "add_open", title: "Adds not done", who: "Agency", why: "The sheet said Add, but the search is not a keyword in that campaign." },
   { type: "add_blocked", title: "Adds blocked by a negative", who: "Agency", why: "The sheet said Add, but a negative in the account blocks this search, so it cannot show even as a keyword." },
+  { type: "neg_blocks_good", title: "Negatives blocking searches we want", who: "Agency", why: "A single word (or a short phrase) in broad or phrase match blocks every search that contains it. Each negative here also blocks searches that brought conversions, that the sheet said to Add, or that are our keywords. Take it out and negate the junk searches it was added for one by one, by their full search term, so nothing we want is caught." },
   { type: "keyword_blocked", title: "Negatives switching off our keywords", who: "Agency", why: "A campaign-wide negative blocks keywords that are enabled in the same campaign: those keywords cannot show for the searches they were bought for." },
   { type: "results_blocked", title: "Searches with conversions now blocked", who: "County to decide", why: "These searches brought conversions (Google's count), but a negative now blocks them. Check that this was meant." },
   { type: "not_reviewed", title: "Searches missing from the sheet", who: "Agency", why: "They cost money in the period but are in no tab of the STR sheet, so nobody has judged them." },
@@ -81,10 +82,13 @@ export function fixList(led: Ledger): FixItem[] {
     const ag = s.ad_groups[0] ?? "";
     const blk = s.blockers[0];
     if (s.outcome === "junk_open") {
-      const neg = s.neg_written || `[${s.term}]`;
+      // County's rule: negate the search term itself (or a part of two or more words), never a single word
+      const okWritten = s.neg_written_kind === "term" || s.neg_written_kind === "part";
+      const neg = okWritten ? s.neg_written : `"${s.term}"`;
+      const why = okWritten ? "" : s.neg_written_kind === "one_word" ? ` (the sheet wrote one word, ${s.neg_written}: use the full search term)` : s.neg_written ? ` (the sheet wrote ${s.neg_written}, which is not in the search)` : " (the sheet wrote no negative)";
       const partly = s.blocked === "partly" ? `Blocked only in ${s.blockers.map((b) => b.ad_group).filter(Boolean).join(", ")}; it also ran in ${s.ad_groups.filter((g) => !s.blockers.some((b) => b.ad_group === g)).join(", ")}.` : "";
       out.push({ type: "junk_open", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
-        todo: `Add negative ${neg}${s.neg_written ? "" : " (the sheet wrote no negative)"}`, where: negPath(s.campaign, ""),
+        todo: `Add negative ${neg}${why}`, where: negPath(s.campaign, ""),
         cost: s.cost, conv: s.conv, since: s.call_day, note: [partly, listNote(s)].filter(Boolean).join(" ") });
     } else if (s.outcome === "add_open") {
       out.push({ type: "add_open", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
@@ -102,15 +106,44 @@ export function fixList(led: Ledger): FixItem[] {
         todo: "Review it in the sheet: Add, Exclude or leave", where: "STR sheet", cost: s.cost, conv: s.conv, since: s.first_day, note: "" });
     }
   }
+  // negatives that also block searches we want: swap each for the junk searches it was meant for
+  const addedOn = negAddedOn();
+  const done = new Set<string>();
+  for (const n of led.costly_negatives) {
+    const key = `${n.campaign}${n.ad_group}${n.text.toLowerCase()}`;
+    if (done.has(key)) continue;
+    done.add(key);
+    const a = addedOn.get(key) ?? addedOn.get(`${n.campaign}${n.text.toLowerCase()}`);
+    const goodList = n.good.slice(0, 5).map((g) => `${g.term} (${g.conv > 0 ? `${Math.round(g.conv * 10) / 10} conv` : g.why})`).join(", ") + (n.good.length > 5 ? ` and ${n.good.length - 5} more` : "");
+    const swap = n.junk_terms.slice(0, 4).map((t) => `"${t}"`).join(", ") + (n.junk_terms.length > 4 ? ` and ${n.junk_terms.length - 4} more` : "");
+    out.push({ type: "neg_blocks_good", id: `neg${key}`, project: n.project, campaign: n.campaign, ad_group: n.ad_group, term: goodList,
+      todo: `Remove ${n.text}${n.words === 1 ? " (one word)" : ""}${n.junk ? `; negate instead the ${n.junk} junk search${n.junk === 1 ? "" : "es"} it blocks: ${swap}` : "; it blocks no search the sheet called junk"}`,
+      where: negPath(n.campaign, n.ad_group), cost: n.good_cost, conv: n.good_conv, since: a?.day ?? "", note: a ? `Added by ${a.by}.` : "" });
+  }
   // negatives that switch off our own enabled keywords (campaign level), from the full negative list
   const inv = readInventory() ? getInventory() : null;
   for (const r of inv?.risky ?? []) {
     if (r.level !== "campaign" || !r.keywords.length) continue;
+    if (done.has(`${r.campaign}${r.text.toLowerCase()}`)) continue;
     out.push({ type: "keyword_blocked", id: `kw\u0001${r.campaign}\u0001${r.text}`, project: r.project, campaign: r.campaign, ad_group: "", term: r.keywords.slice(0, 6).join(", ") + (r.keywords.length > 6 ? ` and ${r.keywords.length - 6} more` : ""),
       todo: `Remove or narrow negative ${r.text} (blocks ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"})`, where: negPath(r.campaign, ""),
       cost: 0, conv: r.conv, since: r.added_on, note: r.added_by ? `Added by ${r.added_by}${r.added_on ? ` on ${r.added_on}` : ""}.` : "" });
   }
   return out;
+}
+
+/** When each negative was added, from the change history (campaign, ad group, text in lower case). */
+function negAddedOn() {
+  const m = new Map<string, { day: string; by: string }>();
+  for (const c of readTable("changes")) {
+    const kind = String(c.kind ?? "");
+    if (!kind.startsWith("negative") || !kind.includes("keyword added")) continue;
+    const text = String(c.item ?? "").replace(/^-/, "").trim().toLowerCase();
+    const key = `${String(c.campaign ?? "")}${String(c.ad_group ?? "")}${text}`;
+    const by = /roimantra/i.test(String(c.user ?? "")) ? "the agency" : "County";
+    if (!m.has(key)) m.set(key, { day: String(c.day ?? ""), by });
+  }
+  return m;
 }
 
 export type { Ledger, Outcome, Search };

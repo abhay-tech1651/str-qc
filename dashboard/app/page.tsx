@@ -54,6 +54,11 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const conv = part("results");
   const addsAsked = T.by.add_done.n + T.by.add_open.n + T.by.add_blocked.n;
   const openOf = (by: typeof T.by) => OPEN.reduce((s, o) => s + by[o].n, 0);
+  // how each blocked junk search is blocked, and what the sheet wrote for its Excludes (County asks for the full search term)
+  const jb = led.searches.filter((s) => s.outcome === "junk_blocked");
+  const byKind = (k: string) => jb.filter((s) => s.block_kind === k).length;
+  const exCalls = led.searches.filter((s) => s.verdict === "Exclude");
+  const wrote = (k: string) => exCalls.filter((s) => s.neg_written_kind === k).length;
   const projects = m.projects.map((p) => ({ p, g: led.by_project.find((g) => g.key === p.id) })).filter((x) => x.g);
 
   return (
@@ -92,7 +97,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <span className="tabular w-10 shrink-0 text-right text-lg font-semibold">{n0(t.items.length)}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[14px] font-medium">{t.title}</span>
-                      <span className="block text-[12.5px] text-muted-foreground">{t.who}{cost > 0 ? ` · ${inr(cost)} spent on them in the period` : ""}</span>
+                      <span className="block text-[12.5px] text-muted-foreground">{t.who}{cost > 0 ? (t.type === "neg_blocks_good" ? ` · ${inr(cost)} went to the searches we want that they block` : ` · ${inr(cost)} spent on them in the period`) : ""}</span>
                     </span>
                     <ArrowRight className="size-4 text-muted-foreground" />
                   </Link>
@@ -100,12 +105,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
               );
             })}
           </ul>
+          <p className="mt-3 border-t pt-3 text-[12.5px] leading-relaxed text-muted-foreground">
+            In the sheet&apos;s negative column, {n0(wrote("one_word"))} of the {n0(exCalls.length)} Exclude calls give a single word and {n0(wrote("none"))} give none.
+            County&apos;s rule: negate the search term itself (or two or more of its words), never one word, so the fix list always suggests the full term.
+          </p>
         </Card>
         <Card className="p-5">
           <h2 className="flex items-center gap-2 text-base font-semibold"><CheckCircle2 className="size-5 text-good" /> Done</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">What the agency has put right, so the picture stays fair.</p>
           <ul className="mt-3 space-y-3 text-[14px] leading-snug">
             <li><b className="tabular">{n0(T.by.junk_blocked.n)}</b> of {n0(junkN)} searches the sheet called junk are blocked in Google Ads ({Math.round(pctOf(T.by.junk_blocked.n, junkN))}%).</li>
+            <li>Of those, <b className="tabular">{n0(byKind("term"))}</b> are blocked by their own full search term (safe: it blocks nothing else), {n0(byKind("part"))} by part of it, and <b className="tabular">{n0(byKind("one_word"))}</b> only by a single word, which also blocks every other search with that word.</li>
             <li>Of the {inr(junk)} spent on junk searches, <b className="tabular">{inr(led.junk_cost_after_call)}</b> came after the sheet had called them junk, and {inr(led.junk_cost_after_deadline)} after the {led.grace}-day deadline. The rest was spent on the day each search first appeared, before anyone could see it.</li>
             <li><b className="tabular">{n0(T.by.add_done.n)}</b> of {n0(addsAsked)} searches the sheet said to Add are keywords now.</li>
             <li>The sheet reviewed {T.by.not_reviewed.n === 0 ? "every search" : <>every search but <b className="tabular">{n0(T.by.not_reviewed.n)}</b></>} that cost money in the period.</li>

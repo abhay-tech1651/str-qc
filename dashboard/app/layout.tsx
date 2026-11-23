@@ -21,7 +21,10 @@ async function shellInfo(): Promise<ShellInfo> {
   const key = await periodKey();
   if (!hasData()) return { projects: [], fresh: "No data loaded yet", issues: 0, hasData: false, period: { key, from: null, to: null, last: null } };
   const m = (await periodModel());
-  const urgent = (id: string) => m.fixes.filter((f) => f.project === id && f.severity === "high").length;
+  // menu badges = sheet calls on the Fix list that are past the agency's deadline, overall and per project
+  const led = getLedger();
+  const overdue = led ? fixList(led).filter((f) => f.overdue) : [];
+  const urgent = (id: string) => overdue.filter((f) => f.project === id).length;
   const ct = m.data.campaign_days?.complete_through;
   const st = m.data.search_terms?.to;
   const fresh = [ct ? `Campaigns to ${dshort(ct)}` : "Campaigns: not loaded", st ? `search terms to ${dshort(st)}` : ""].filter(Boolean).join(" · ");
@@ -29,7 +32,7 @@ async function shellInfo(): Promise<ShellInfo> {
     projects: m.projects.map((p) => ({ id: p.id, name: p.name.replace(" County", ""), color: pcolor(p.id), urgent: urgent(p.id) })),
     fresh,
     // the menu badge is the number of rows on the Fix list (sheet up to its default day)
-    issues: (() => { const led = getLedger(); return led ? fixList(led).length : 0; })(),
+    issues: overdue.length,
     hasData: true,
     period: { key, from: m.windows.last7?.from ?? null, to: m.windows.last7?.to ?? null, last: lastCompleteDay() },
   };

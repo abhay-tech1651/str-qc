@@ -181,8 +181,12 @@ function CommandMenu({ info }: { info: ShellInfo }) {
   );
 }
 
+// pages that use "Checked up to" (the sheet day) instead of the old period filter
+const LEDGER_PAGES = new Set(["/", "/fix", "/searches"]);
+
 export function Shell({ info, children }: { info: ShellInfo; children: React.ReactNode }) {
   const [mobile, setMobile] = React.useState(false);
+  const here = usePathname();
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-screen overflow-y-auto border-r bg-sidebar lg:block">
@@ -201,7 +205,7 @@ export function Shell({ info, children }: { info: ShellInfo; children: React.Rea
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobile(true)} aria-label="Open menu"><Menu /></Button>
           <CommandMenu info={info} />
           <div className="ml-auto flex items-center gap-1.5">
-            {info.hasData ? <PeriodPicker period={info.period} /> : null}
+            {info.hasData && !LEDGER_PAGES.has(here) ? <PeriodPicker period={info.period} /> : null}
             <span className="hidden rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground xl:inline">{info.fresh}</span>
             <Button variant="outline" size="sm" asChild><Link href="/data"><Upload /> Import</Link></Button>
             <Tip content="Print or save as PDF">

@@ -118,20 +118,21 @@ export function SearchesView({ searches, labels, projects, init }: {
   );
 }
 
-export interface FixTypeMeta { type: FixType; title: string; who: string; why: string; n: number; cost: number }
+export interface FixTypeMeta { type: FixType; title: string; who: string; why: string; n: number; overdue: number; cost: number }
 
 export function FixView({ items, types, searches, labels, projects, init }: {
   items: FixItem[]; types: FixTypeMeta[]; searches: Search[]; labels: Labels; projects: ProjectOpt[];
-  init: { type: string; project: string };
+  init: { type: string; project: string; late?: string };
 }) {
   const first = types.find((t) => t.type === init.type)?.type ?? types[0]?.type ?? "junk_open";
   const [type, setType] = useParamState("type", first);
   const [project, setProject] = useParamState("project", init.project);
+  const [late, setLate] = useParamState("late", init.late ?? "");
   const [sel, setSel] = React.useState<Search | null>(null);
   const lab = (c: string) => labels[c] ?? c;
   const byId = React.useMemo(() => new Map(searches.map((s) => [s.id, s])), [searches]);
   const meta = types.find((t) => t.type === type) ?? types[0];
-  const rows = items.filter((f) => f.type === type && (!project || f.project === project));
+  const rows = items.filter((f) => f.type === type && (!project || f.project === project) && (!late || f.overdue));
   const projName = (id: string) => projects.find((p) => p.id === id)?.name ?? id;
 
   const perNeg = type === "keyword_blocked" || type === "neg_blocks_good";
@@ -143,6 +144,7 @@ export function FixView({ items, types, searches, labels, projects, init }: {
     { key: "where", label: "Where in Google Ads", render: (f) => <span className="block max-w-[230px] break-words text-[12px] leading-snug text-muted-foreground">{f.where}</span> },
     { key: "cost", label: "Spent", align: "right", render: (f) => <span className="tabular">{f.cost ? inr(f.cost) : "–"}</span> },
     ...(type === "results_blocked" || perNeg ? [{ key: "conv", label: "Conv", align: "right" as const, render: (f: FixItem) => <span className="tabular">{n0(f.conv)}</span> }] : []),
+    { key: "due", label: "Due", value: (f) => f.due || "0", render: (f) => f.overdue ? <span className="whitespace-nowrap text-[12.5px] font-medium text-bad">{f.due ? `${dshort(f.due)}, late` : "now"}</span> : <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">{f.due ? dshort(f.due) : f.type === "results_blocked" ? "County decides" : "now"}</span> },
     { key: "since", label: perNeg ? "Added" : "Sheet day", render: (f) => <span className="whitespace-nowrap text-[12.5px]">{f.since ? dshort(f.since) : "–"}</span> },
   ];
 
@@ -153,7 +155,7 @@ export function FixView({ items, types, searches, labels, projects, init }: {
           <button key={t.type} type="button" onClick={() => setType(t.type)}
             className={cn("rounded-xl border bg-card p-3 text-left transition-shadow hover:shadow-sm", t.type === type ? "ring-2 ring-primary" : "")}>
             <div className="flex items-baseline justify-between gap-2"><span className="text-[14px] font-medium">{t.title}</span><span className="tabular text-lg font-semibold">{n0(t.n)}</span></div>
-            <div className="text-[12.5px] text-muted-foreground">{t.who}{t.cost ? ` · ${inr(t.cost)}` : ""}</div>
+            <div className="text-[12.5px] text-muted-foreground">{t.who}{t.cost ? ` · ${inr(t.cost)}` : ""}{t.overdue ? <span className="text-bad"> · {n0(t.overdue)} late</span> : t.n ? " · none late" : ""}</div>
           </button>
         ))}
       </div>
@@ -165,7 +167,7 @@ export function FixView({ items, types, searches, labels, projects, init }: {
       ) : null}
       <DataTable rows={rows as unknown as Record<string, unknown>[]} columns={columns as unknown as Column<Record<string, unknown>>[]} csvName={`fix-${type}${project ? `-${project}` : ""}`}
         initialSort={{ key: "cost", dir: "desc" }} empty="Nothing open here."
-        toolbar={<Select aria-label="Project" value={project} onChange={(e) => setProject(e.target.value)} className="h-9 w-[150px]"><option value="">All projects</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>}
+        toolbar={<><label className="flex h-9 items-center gap-1.5 rounded-md border bg-card px-2.5 text-[13px]"><input type="checkbox" checked={!!late} onChange={(e) => setLate(e.target.checked ? "1" : "")} /> Only past the deadline</label><Select aria-label="Project" value={project} onChange={(e) => setProject(e.target.value)} className="h-9 w-[150px]"><option value="">All projects</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></>}
         onRowClick={(r) => { const s = byId.get((r as unknown as FixItem).id); if (s) setSel(s); }} />
       <SearchDrawer s={sel} onClose={() => setSel(null)} label={lab} />
     </>

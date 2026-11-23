@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, CircleAlert, Database } from "lucide-react";
-import { getModel, hasData } from "@/lib/store";
+import { getModel, hasData, readTable, todayIST } from "@/lib/store";
 import { FIX_TYPES, fixList, getLedger, ledgerDays } from "@/lib/ledger";
 import { OPEN, parts } from "@/lib/outcomes";
 import { cn, dlong, dshort, inr, lakh, n0, pcolor } from "@/lib/format";
@@ -48,6 +48,11 @@ export default async function Overview({ searchParams }: { searchParams: Promise
   const fixes = fixList(led);
   const fixBy = FIX_TYPES.map((t) => ({ ...t, items: fixes.filter((f) => f.type === t.type) })).filter((t) => t.items.length);
   const openCount = fixes.length;
+  const lateCount = fixes.filter((f) => f.overdue).length;
+  // the newest change in the account (change history), to show when nothing has gone into Google Ads for a while
+  const lastTs = readTable("changes").map((c) => String(c.ts ?? "")).filter(Boolean).sort().pop() ?? "";
+  const lastDay = lastTs.slice(0, 10);
+  const idleDays = lastDay ? Math.round((Date.parse(`${todayIST()}T00:00:00Z`) - Date.parse(`${lastDay}T00:00:00Z`)) / 86400000) : 0;
 
   const junk = T.by.junk_blocked.cost + T.by.junk_open.cost;
   const junkN = T.by.junk_blocked.n + T.by.junk_open.n;
@@ -69,11 +74,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         description={<>
           From {dlong(led.from)} to {dlong(led.to)}, Google spent <b className="text-foreground">{inr(T.cost)}</b> on <b className="text-foreground">{n0(T.searches)}</b> different searches.{" "}
           <b className="text-foreground">{inr(conv.cost)}</b> of it went to searches that brought conversions. The agency&apos;s sheet called <b className="text-foreground">{inr(junk)}</b> junk;{" "}
-          {n0(T.by.junk_blocked.n)} of those {n0(junkN)} searches are blocked now. <b className="text-foreground">{n0(openCount)} things are still open</b>, each listed with where to find it in Google Ads.
+          {n0(T.by.junk_blocked.n)} of those {n0(junkN)} searches are blocked now. <b className="text-foreground">{n0(openCount)} things are still open</b> ({n0(lateCount)} past the agency&apos;s {led.grace}-day deadline), each listed with where to find it in Google Ads.
         </>}
         actions={<><UpToPicker days={days.days} value={led.to} /><Button asChild><Link href={`/fix${q({})}`}>Open the fix list <ArrowRight /></Link></Button></>}
       />
 
+      {lastDay && idleDays >= 2 ? (
+        <Card className="mb-4 flex items-start gap-3 border-bad/40 bg-bad-soft p-4 text-[14px]">
+          <CircleAlert className="mt-0.5 size-5 shrink-0 text-bad" />
+          <div><b>Nothing has changed in Google Ads for {idleDays} days.</b> The newest change in the change history is {dlong(lastDay)}, {lastTs.slice(11, 16)}. Sheet tabs after that are not in the account yet. <span className="text-muted-foreground">If the change history was downloaded a while ago, download it again on Data.</span></div>
+        </Card>
+      ) : null}
       <Card className="p-5 sm:p-6">
         <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight">Every rupee, {inr(T.cost)}</h2>
@@ -97,7 +108,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                     <span className="tabular w-10 shrink-0 text-right text-lg font-semibold">{n0(t.items.length)}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[14px] font-medium">{t.title}</span>
-                      <span className="block text-[12.5px] text-muted-foreground">{t.who}{cost > 0 ? (t.type === "neg_blocks_good" ? ` · ${inr(cost)} went to the searches we want that they block` : ` · ${inr(cost)} spent on them in the period`) : ""}</span>
+                      <span className="block text-[12.5px] text-muted-foreground">{t.who}{(() => { const l = t.items.filter((f) => f.overdue).length; return l ? <span className="font-medium text-bad"> · {n0(l)} late</span> : null; })()}{cost > 0 ? (t.type === "neg_blocks_good" ? ` · ${inr(cost)} went to the searches we want that they block` : ` · ${inr(cost)} spent on them in the period`) : ""}</span>
                     </span>
                     <ArrowRight className="size-4 text-muted-foreground" />
                   </Link>

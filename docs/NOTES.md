@@ -26,3 +26,4 @@ Open the data saved that day (the `Save dashboard data (...)` commit), set **Che
 | Date | Note | What |
 |---|---|---|
 | 23 Nov 2026 | `data/notes/2026-11-23-str-meeting.md` | STR meeting: tabs not applied (18 to 22 Nov), money after the call, one-word negatives, negatives blocking wanted searches by intent, County's project-name rule, every County comment against the account, Adds by intent, converted searches now blocked, Excludes with buying intent |
+| 25 Nov 2026 | `data/notes/2026-11-25-followthrough.md` | Follow-through after the 23 Nov meeting: Excludes from the 18 to 22 Nov tabs applied on 24 Nov, Adds still not done, the five meeting negatives still in place, new one-word negatives, Notes-tab words in shared lists, other account changes 23 to 25 Nov. Exports of 25 Nov 5:14 pm, not yet loaded into the dashboard |

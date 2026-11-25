@@ -22,7 +22,8 @@ export function ScoreBar({ segs, title, total, note }: { segs: Seg[]; title?: Re
         ))}
       </div>
       <ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
-        {segs.map((s) => (
+        {/* neutral parts with nothing in them are left out of the legend; a zero "not done" stays, it is good news */}
+        {segs.filter((s) => s.n > 0 || (s.tone !== "info" && s.tone !== "muted")).map((s) => (
           <li key={s.key} className="flex items-center gap-1.5" title={s.hint}>
             <span className="size-2.5 rounded-[3px]" style={{ background: TONE_FILL[s.tone] }} />
             <span className="tabular font-semibold">{n0(s.n)}</span>

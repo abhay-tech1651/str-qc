@@ -51,15 +51,15 @@ export function fixText(f: Fix, model: Model): FixText {
     case "overdue_excludes":
       return { title: `${n0(p.count)} ${pname} ${plural(p.count, "search", "searches")} the agency marked Exclude were never blocked`,
         detail: <>Sheet days {days}. They cost {inr(f.money)} on the days they were reviewed, and nothing stops them coming back.</>,
-        todo: "Send the list to the agency and ask for the negatives to be applied today, or a reason why not.", href: "/agency", link: "See the list" };
+        todo: "Send the list to the agency and ask for the negatives to be applied today, or a reason why not.", href: "/report#open", link: "See the list" };
     case "overdue_adds":
       return { title: `${n0(p.count)} good ${pname} ${plural(p.count, "search", "searches")} marked Add were never added as keywords`,
         detail: <>Sheet days {days}. The agency&apos;s own sheet says these searches should be keywords.</>,
-        todo: "Ask the agency to add them, or to change the sheet.", href: "/agency?tab=adds", link: "See the list" };
+        todo: "Ask the agency to add them, or to change the sheet.", href: "/report#adds", link: "See the list" };
     case "no_negative_written":
       return { title: `${n0(p.count)} ${pname} ${plural(p.count, "row says", "rows say")} Exclude but no negative is written`,
         detail: <>Without the exact negative and its match type, whoever applies it has to guess, and a guessed broad negative can block good searches.</>,
-        todo: "Ask the agency to fill the Negative column for these rows.", href: "/agency?tab=nonegative", link: "See the rows" };
+        todo: "Ask the agency to fill the Negative column for these rows.", href: "/report#sheet", link: "See the rows" };
     case "brand_no_word":
       return { title: `${pname} brand campaign paid ${inr(f.money)} for ${n0(p.count)} ${plural(p.count, "search", "searches")} that don't mention County or ${pname}`,
         detail: <>Example: “{p.example}” cost {inr(p.example_cost)}. Brand campaigns bid high because brand searchers already want us; this money went to people looking for something else.</>,
@@ -71,11 +71,11 @@ export function fixText(f: Fix, model: Model): FixText {
     case "blocked_keywords":
       return { title: `${n0(p.count)} ${pname} ${plural(p.count, "keyword", "keywords")} can never show: our own negatives block them`,
         detail: <>Example: the keyword “{p.example}” is blocked by the negative <C>{p.example_negative}</C>. A negative always wins over a keyword.</>,
-        todo: "Remove those negatives or move them to the ad groups where they belong.", href: "/agency?tab=blocked", link: "See all" };
+        todo: "Remove those negatives or move them to the ad groups where they belong.", href: "/report#negatives", link: "See all" };
     case "risky_negatives":
       return { title: `${n0(p.count)} campaign-wide ${pname} negatives are a bare number or common words`,
         detail: <>For example {(p.examples || []).map((x: string, i: number) => <span key={i}>{i ? ", " : ""}<C>{x}</C></span>)}. One of these can switch off hundreds of good searches (a bare <C>-62</C> also blocks “₹62 lakh” and “sector 62”).</>,
-        todo: "Replace each with the exact phrase that was junk (SOP section 7).", href: "/agency?tab=risky", link: "See all" };
+        todo: "Replace each with the exact phrase that was junk (SOP section 7).", href: "/negatives", link: "See all" };
     case "product_mismatch":
       return { title: `${pname} ads run on villa and penthouse keywords, and ${pname} sells neither`,
         detail: <>{n0(p.count)} keywords in {(p.ad_groups || []).join(", ")} cost {inr(f.money)} with {n1(p.conv)} Google conversions.</>,

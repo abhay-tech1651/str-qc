@@ -1,181 +1,134 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, CircleAlert, Database, Presentation } from "lucide-react";
+import { CircleAlert, Database } from "lucide-react";
 import { hasData } from "@/lib/store";
-import { getBrief } from "@/lib/brief";
-import { change, cn, dshort, inr, lakh, n0, n1, pct } from "@/lib/format";
-import { Badge, Button, Card, CardHeader, EmptyState, Explain, PageHeader, Section } from "@/components/ui";
-import { ProjectCard, StatCard } from "@/components/blocks";
-import { periodModel } from "@/lib/period";
+import { ledgerDays } from "@/lib/ledger";
+import { getAudit, changeDays } from "@/lib/audit";
+import { cn, dlong, dshort, inr, n0 } from "@/lib/format";
+import { Card, EmptyState, Explain, PageHeader, Section } from "@/components/ui";
+import { FollowTable } from "@/components/audit-views";
+import { UpToPicker } from "@/components/upto-picker";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Day by day" };
 
-const time = (ts: string) => (ts.length >= 16 ? `${dshort(ts.slice(0, 10))}, ${ts.slice(11, 16)}` : ts);
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const weekday = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+const ORG_TONE: Record<string, string> = { ROI: "bg-info-soft text-info", County: "bg-good-soft text-good", Google: "bg-warn-soft text-warn", AGO: "bg-muted text-muted-foreground", Other: "bg-muted text-muted-foreground" };
 
-export default async function TodayPage() {
-  if (!hasData()) {
+export default async function DailyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const A = hasData() ? getAudit(one(sp.to)) : null;
+  if (!A) {
     return (
       <>
-        <PageHeader eyebrow="Welcome" title="Let's load your Google Ads data" description="The dashboard fills itself from Google Ads exports and the agency's STR sheet. It takes about a minute." />
-        <EmptyState icon={<Database className="size-8" />} title="No data yet">
-          Open <Link href="/data" className="font-medium text-primary underline-offset-2 hover:underline">Data</Link> and press “Import new reports from Downloads”.
-        </EmptyState>
+        <PageHeader eyebrow="Day by day" title="Each sheet day, and what changed in Google Ads" />
+        <EmptyState icon={<Database className="size-8" />} title="No data yet">Load the search terms report, the change history and the agency sheet on <Link href="/data" className="text-primary hover:underline">Data</Link>.</EmptyState>
       </>
     );
   }
-  const m = await periodModel();
-  const b = getBrief();
-  const o = b.on_time;
-  const a = m.account;
-  const behind = b.freshness.filter((f) => !f.ok);
-  const recentDays = b.days.slice(0, 7);
+  const { led, tabs, labels } = A;
+  const tab = tabs.find((t) => t.day === one(sp.tab)) ?? tabs[0];
+  const rows = tab ? A.agency.filter((f) => f.call_day === tab.day) : [];
+  const q = (extra: Record<string, string>) => `?${new URLSearchParams({ to: led.to, ...extra })}`;
+
+  // Google Ads, every day from three weeks back to today: days with no change are shown too
+  const cds = changeDays(one(sp.to));
+  const byDay = new Map(cds.map((d) => [d.day, d]));
+  const span: string[] = [];
+  for (let d = A.asOf; d >= addDay(A.asOf, -20); d = addDay(d, -1)) span.push(d);
+  const last = A.lastChange;
 
   return (
     <>
       <PageHeader
-        eyebrow={`Day by day · ${dshort(b.today)}`}
-        title="Each sheet day, and what changed"
-        description={<>The agency&apos;s sheet runs to <b className="font-semibold text-foreground">{dshort(b.sheet_to)}</b> and Google Ads changes to <b className="font-semibold text-foreground">{dshort(b.last_change)}</b>. The agency has {b.grace} days to put each Exclude call into Google Ads; after that it counts as late.</>}
-        actions={<Button asChild><Link href="/meeting"><Presentation /> Meeting proof</Link></Button>}
+        eyebrow={`Day by day · sheet tabs to ${dshort(led.to)} · change history to ${dshort(A.asOf)}`}
+        title="Each sheet day, and what changed in Google Ads"
+        description={<>The left table is the agency&apos;s sheet: for each tab, what happened to its Adds and Excludes. The right list is Google Ads: who changed what, each day. {last ? <>The newest change is {dlong(last.ts.slice(0, 10))}, {last.ts.slice(11, 16)}, by {last.who}.</> : null} Click a tab to see its calls.</>}
+        actions={<UpToPicker days={ledgerDays().days} value={led.to} />}
       />
 
-      {/* how fresh each source is */}
-      <Card className={cn("mb-6 p-4", behind.length ? "border-[color:var(--warn)]/40" : "")}>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px]">
-          <span className="flex items-center gap-1.5 font-medium">
-            {behind.length ? <CircleAlert className="size-4 text-[color:var(--warn)]" /> : <CheckCircle2 className="size-4 text-good" />}
-            {behind.length ? `${behind.length} ${behind.length === 1 ? "source needs" : "sources need"} a new download` : "All data is up to date"}
-          </span>
-          {b.freshness.map((f) => (
-            <span key={f.source} className="flex items-center gap-1.5 text-muted-foreground" title={`${f.how} (${f.cadence})`}>
-              <span className={cn("size-2 rounded-full", f.ok ? "bg-good" : "bg-[color:var(--warn)]")} />
-              {f.source}: <span className={cn("tabular", f.ok ? "text-foreground" : "font-medium text-[color:var(--warn)]")}>{f.last ? `to ${dshort(f.last)}` : "not loaded"}</span>
-            </span>
-          ))}
-          {behind.length ? <Link href="/data" className="ml-auto text-primary underline-offset-2 hover:underline">How to download →</Link> : null}
-        </div>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Exclude calls put in on time" value={pct(o.on_time_pct)} tone={(o.on_time_pct ?? 0) >= 80 ? "good" : "bad"}
-          sub={<>{n0(o.on)} on time · {n0(o.late)} late · {n0(o.never)} never, of {n0(o.judged)} calls past their {b.grace} days</>} />
-        <StatCard label="Never put in" value={n0(o.never)} tone={o.never ? "bad" : "good"}
-          sub={<>{inr(o.never_cost)} was spent on those searches · {n0(o.waiting)} more still inside their {b.grace} days</>} />
-        <StatCard label="Our keywords switched off by negatives" value={b.inventory ? n0(b.inventory.blocks_keywords) : "–"} tone={b.inventory?.blocks_keywords ? "bad" : undefined}
-          sub={b.inventory ? <>campaign-wide negatives in the account on {dshort(b.inventory.as_of)} that block enabled keywords</> : "load the negative keyword report"} />
-        <StatCard label={`Spend, ${dshortRange(m.windows.last7?.from, m.windows.last7?.to)}`} value={lakh(a.last7.cost)} delta={change(a.last7.cost, a.prev7.cost)} invert
-          sub={<>{n1(a.last7.conv)} Google conversions at {inr(a.last7.cpa)} each (Google&apos;s count, not CRM leads)</>} />
-      </div>
-
-      <div className="mt-6 grid gap-4 xl:grid-cols-5">
+      <div className="grid gap-6 xl:grid-cols-5">
         <Card className="overflow-x-auto xl:col-span-3">
-          <CardHeader title="Each sheet day: did the Exclude calls go in?" description={`The last 7 sheet days. "Late" means it went in after ${b.grace} days.`}
-            action={<Button asChild variant="ghost" size="sm"><Link href="/agency">Every call <ArrowRight /></Link></Button>} />
-          <table className="mt-3 w-full text-sm">
-            <thead><tr className="border-y bg-muted/50 text-xs text-muted-foreground">
-              <th className="px-4 py-2 text-left font-medium">Sheet day</th>
-              <th className="px-3 py-2 text-right font-medium">Calls</th>
-              <th className="px-3 py-2 text-right font-medium">On time</th>
-              <th className="px-3 py-2 text-right font-medium">Late</th>
-              <th className="px-3 py-2 text-right font-medium">Not done</th>
-              <th className="px-3 py-2 text-right font-medium">Still waiting</th>
-              <th className="px-4 py-2 text-left font-medium">Went in on</th>
-            </tr></thead>
-            <tbody>
-              {recentDays.map((d) => (
-                <tr key={d.day} className="border-b last:border-0">
-                  <td className="px-4 py-2 font-medium">{dshort(d.day)}</td>
-                  <td className="px-3 py-2 text-right tabular">{n0(d.calls)}</td>
-                  <td className="px-3 py-2 text-right tabular text-good">{d.on_time || "–"}</td>
-                  <td className={cn("px-3 py-2 text-right tabular", d.late && "font-medium text-[color:var(--warn)]")}>{d.late || "–"}</td>
-                  <td className={cn("px-3 py-2 text-right tabular", d.not_done && "font-medium text-bad")}>{d.not_done || "–"}</td>
-                  <td className="px-3 py-2 text-right tabular text-muted-foreground">{d.waiting || "–"}</td>
-                  <td className="px-4 py-2 text-[13px] text-muted-foreground">{d.answered_on.map(dshort).join(", ") || "nothing yet"}</td>
-                </tr>
-              ))}
+          <div className="border-b px-4 py-3"><h2 className="text-base font-semibold">The sheet, tab by tab</h2><p className="text-[12.5px] text-muted-foreground">Deadline: the tab&apos;s day plus {led.grace} days. Red: past the deadline and still not working.</p></div>
+          <table className="w-full min-w-[640px] text-[13px]">
+            <thead className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-medium">Tab</th><th className="px-2 py-2 text-right font-medium">Excl.</th><th className="px-2 py-2 text-right font-medium">On time</th><th className="px-2 py-2 text-right font-medium">Late</th><th className="px-2 py-2 text-right font-medium">Not working</th>
+                <th className="px-2 py-2 font-medium">Went in on</th><th className="px-2 py-2 text-right font-medium">Adds</th><th className="px-2 py-2 text-right font-medium">Added</th><th className="px-4 py-2 text-right font-medium">Not added</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {tabs.map((t) => {
+                const bad = t.ex.open_overdue + t.ex.wrong_place;
+                const addBad = t.add.open_overdue + t.add.elsewhere + t.add.blocked;
+                const sel = tab?.day === t.day;
+                return (
+                  <tr key={t.day} className={cn("hover:bg-muted/40", sel && "bg-accent")}>
+                    <td className="whitespace-nowrap px-4 py-2"><Link href={`${q({ tab: t.day })}#calls`} scroll={false} className="font-medium hover:underline">{weekday(t.day)} {dshort(t.day)}</Link><span className="block text-[11.5px] text-muted-foreground">due {dshort(t.due)}</span></td>
+                    <td className="tabular px-2 py-2 text-right">{n0(t.ex.n)}</td>
+                    <td className="tabular px-2 py-2 text-right text-good">{t.ex.on_time ? n0(t.ex.on_time) : "–"}</td>
+                    <td className="tabular px-2 py-2 text-right text-warn">{t.ex.late ? n0(t.ex.late) : "–"}</td>
+                    <td className={cn("tabular px-2 py-2 text-right", bad ? "font-semibold text-bad" : "text-muted-foreground")}>{bad ? n0(bad) : "–"}{t.ex.open_in_time ? <span className="block text-[11.5px] font-normal text-muted-foreground">{n0(t.ex.open_in_time)} not due</span> : null}</td>
+                    <td className="px-2 py-2 text-[12px]">{t.went_in.length ? t.went_in.map(dshort).join(", ") : <span className="text-muted-foreground">nothing yet</span>}</td>
+                    <td className="tabular px-2 py-2 text-right">{n0(t.add.n)}</td>
+                    <td className="tabular px-2 py-2 text-right">{n0(t.add.on_time + t.add.late)}</td>
+                    <td className={cn("tabular px-4 py-2 text-right", addBad ? "font-medium text-bad" : "text-muted-foreground")}>{addBad ? n0(addBad) : "–"}{t.add.open_in_time ? <span className="block text-[11.5px] font-normal text-muted-foreground">{n0(t.add.open_in_time)} not due</span> : null}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          <Explain>Read across: a sheet day&apos;s calls should go in on that day or the next. A date far to the right means the agency batched them later.</Explain>
-          <div className="h-4" />
         </Card>
 
         <Card className="xl:col-span-2">
-          <CardHeader title="Changed in Google Ads since yesterday" description={`Change history from ${dshort(b.yesterday)}, grouped. The newest change is ${dshort(b.last_change)}.`} />
-          <div className="px-5 pb-5 pt-3">
-            {b.since_yesterday.length ? (
-              <ul className="divide-y">
-                {b.since_yesterday.map((g) => (
-                  <li key={g.what} className="flex items-baseline justify-between gap-3 py-2 text-sm">
-                    <div className="min-w-0">
-                      <div className="font-medium">{g.what}</div>
-                      <div className="text-xs text-muted-foreground">by {g.by} · {g.campaigns} {g.campaigns === 1 ? "campaign" : "campaigns"} · {time(g.first)} – {time(g.last)}</div>
+          <div className="border-b px-4 py-3"><h2 className="text-base font-semibold">Google Ads, day by day</h2><p className="text-[12.5px] text-muted-foreground">From the change history: who changed what. The last three weeks, newest first.</p></div>
+          <ul className="divide-y">
+            {span.map((d) => {
+              const x = byDay.get(d);
+              const wk = weekday(d);
+              const weekend = wk === "Sat" || wk === "Sun";
+              if (!x) return <li key={d} className="flex items-center justify-between px-4 py-2 text-[13px]"><span className="font-medium">{wk} {dshort(d)}</span><span className={cn("text-[12.5px]", weekend ? "text-muted-foreground" : "text-bad")}>No change{weekend ? " (weekend)" : ""}</span></li>;
+              const rest = x.other.length;
+              return (
+                <li key={d} className="px-4 py-2.5 text-[13px]">
+                  <details>
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="font-medium">{wk} {dshort(d)}</span>
+                        <span className="flex flex-wrap gap-1">{x.people.map((p) => <span key={p.who} className={cn("rounded px-1.5 py-0.5 text-[11.5px] font-medium", ORG_TONE[p.org])}>{p.who} · {n0(p.n)}</span>)}</span>
+                      </div>
+                      <div className="mt-1 text-[12.5px] text-muted-foreground">
+                        {[
+                          x.neg.n ? `${n0(x.neg.n)} negatives (${[x.neg.campaign ? `${n0(x.neg.campaign)} campaign` : "", x.neg.ad_group ? `${n0(x.neg.ad_group)} ad group` : "", x.neg.list ? `${n0(x.neg.list)} shared list` : ""].filter(Boolean).join(", ")})` : "",
+                          x.neg.one_word ? `${n0(x.neg.one_word)} one word` : "",
+                          x.kw.added ? `${n0(x.kw.added)} keywords added` : "", x.kw.paused ? `${n0(x.kw.paused)} paused` : "", x.kw.removed ? `${n0(x.kw.removed)} removed` : "",
+                          rest ? `${n0(rest)} other changes` : "",
+                        ].filter(Boolean).join(" · ") || "labels only"}
+                      </div>
+                    </summary>
+                    <div className="mt-2 space-y-2 text-[12.5px]">
+                      {x.one_words.length ? <div><span className="font-medium text-bad">One-word negatives: </span>{x.one_words.map((o, i) => <span key={i} className="mr-2 inline-block"><span className="font-mono">-{o.text}</span> <span className="text-muted-foreground">({o.list ? `list ${o.list}` : `${labels[o.campaign] ?? o.campaign}${o.ad_group ? ` › ${o.ad_group}` : ""}`})</span></span>)}</div> : null}
+                      {x.other.length ? <ul className="space-y-0.5">{x.other.slice(0, 30).map((o, i) => <li key={i}><span className="text-muted-foreground">{o.ts.slice(11, 16)} {o.who}:</span> {o.kind}{o.item ? ` · ${o.item}` : ""}{o.campaign ? <span className="text-muted-foreground"> ({labels[o.campaign] ?? o.campaign})</span> : null}</li>)}{x.other.length > 30 ? <li className="text-muted-foreground">and {x.other.length - 30} more</li> : null}</ul> : null}
                     </div>
-                    <span className="tabular text-base font-semibold">{n0(g.count)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="text-sm text-muted-foreground">No changes in the change history since {dshort(b.yesterday)}. Download a fresh change history if you expected some.</p>}
-          </div>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
         </Card>
       </div>
 
-      <Section title="What to raise with the agency" description="Strongest first. Each point has the numbers and where to check it in Google Ads; the Meeting proof page has the full lists."
-        action={<Button asChild variant="outline" size="sm"><Link href="/meeting">Open meeting proof <ArrowRight /></Link></Button>}>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {b.claims.slice(0, 6).map((c, i) => (
-            <Link key={c.id} href={`/meeting#${c.id}`} className="block">
-              <Card className="h-full p-4 transition-colors hover:bg-muted/40">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-semibold tabular">{i + 1}</span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={c.tone}>{c.number}</Badge>
-                    </div>
-                    <div className="mt-1.5 text-sm font-medium leading-snug">{c.title}</div>
-                    <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{c.detail}</p>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="By project" description="On time is the share of Exclude calls put in within the grace days, of those that are due.">
-        <Card className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-              <th className="px-4 py-2.5 text-left font-medium">Project</th>
-              <th className="px-4 py-2.5 text-right font-medium">Exclude calls</th>
-              <th className="px-4 py-2.5 text-right font-medium">On time</th>
-              <th className="px-4 py-2.5 text-right font-medium">Late</th>
-              <th className="px-4 py-2.5 text-right font-medium">Never put in</th>
-              <th className="px-4 py-2.5 text-right font-medium">Spent on those</th>
-              <th className="px-4 py-2.5 text-right font-medium">Still waiting</th>
-            </tr></thead>
-            <tbody>
-              {b.by_project.map((p) => (
-                <tr key={p.id} className="border-b last:border-0">
-                  <td className="px-4 py-2.5"><Link href={`/projects/${p.id}`} className="font-medium hover:underline">{p.name}</Link></td>
-                  <td className="px-4 py-2.5 text-right tabular">{n0(p.calls)}</td>
-                  <td className="px-4 py-2.5 text-right tabular">{pct(p.on_time_pct)}</td>
-                  <td className="px-4 py-2.5 text-right tabular">{n0(p.late)}</td>
-                  <td className="px-4 py-2.5 text-right tabular">{n0(p.not_done)}</td>
-                  <td className="px-4 py-2.5 text-right tabular">{inr(p.not_done_cost)}</td>
-                  <td className="px-4 py-2.5 text-right tabular">{n0(p.waiting)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {m.projects.map((p) => <ProjectCard key={p.id} model={m} id={p.id} />)}
-        </div>
-      </Section>
+      {tab ? (
+        <Section className="scroll-mt-20" title={<span id="calls">The {dlong(tab.day)} tab: {n0(rows.length)} calls</span>}
+          description={<>Due {dlong(tab.due)}. {n0(tab.ex.on_time)} Excludes on time, {n0(tab.ex.late)} late, {n0(tab.ex.open_overdue + tab.ex.wrong_place)} not working{tab.ex.open_in_time ? `, ${n0(tab.ex.open_in_time)} not due yet` : ""}. {tab.cost_late_done > 0 ? `${inr(tab.cost_late_done)} spent after the deadline before the late ones went in.` : ""} Click a row for the search&apos;s full story.</>}>
+          {tab.ex.open_overdue + tab.ex.wrong_place > 0 ? (
+            <Card className="mb-3 flex items-start gap-2 border-bad/40 bg-bad-soft p-3 text-[13px]"><CircleAlert className="mt-0.5 size-4 shrink-0 text-bad" /> {n0(tab.ex.open_overdue + tab.ex.wrong_place)} Excludes from this tab are past the deadline and still not working.</Card>
+          ) : null}
+          <FollowTable rows={rows} labels={labels} cols={["term", "campaign", "status", "written", "went", "how", "late", "cost_late"]} csvName={`sheet-${tab.day}`} sort={{ key: "days_late", dir: "desc" }} />
+          <Explain>Status follows the change history and the account as it is on {dlong(A.asOf)}. &quot;Went in&quot; is the change history&apos;s time and person. &quot;How it went in&quot;: the negative that blocks it, where it sits, and whether it is the full search or one word.</Explain>
+        </Section>
+      ) : null}
     </>
   );
-}
-
-function dshortRange(a?: string | null, b?: string | null) {
-  return a && b ? `${dshort(a)} – ${dshort(b)}` : "last 7 days";
 }

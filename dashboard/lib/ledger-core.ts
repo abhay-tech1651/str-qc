@@ -28,12 +28,19 @@ export const OUTCOMES = ["results", "results_blocked", "junk_blocked", "junk_ope
 export type Outcome = (typeof OUTCOMES)[number];
 export type Verdict = "Exclude" | "Add" | "Discuss" | "Left as is" | "Not in sheet";
 
-export interface Blocker { text: string; level: "campaign" | "ad group"; ad_group: string; kind: NegKind; /** another County project's name: County's own rule (22 Nov 2026), not a mistake */ county_rule?: boolean }
+export interface Blocker {
+  text: string; level: "campaign" | "ad group"; ad_group: string; kind: NegKind;
+  /** another County project's name: County's own rule (22 Nov 2026), not a mistake */ county_rule?: boolean;
+  /** our brand word in a non-brand or competitor campaign: SOP rule 1 sends brand searches to the brand campaign, not a mistake */ sop_brand?: boolean;
+  /** the shared negative list it sits in (a list works like a campaign-level negative) */ list?: string;
+}
 /** How much the search says the person wants one of our homes (config/intent.json): decide on this, not on whether it converted once. */
 export type Intent = "high" | "medium" | "low";
 export interface IntentRules {
   brand: Record<string, string[]>; our_places: Record<string, string[]>; county_other_projects: string[];
   buy_words: string[]; city_words: string[]; low_words: string[];
+  /** SOP rule 1: our brand words; a search with one in a non-brand or competitor campaign belongs to the brand campaign */
+  brand_words?: string[];
   /** words that say nothing about which project: any other word (not a number) is a name, usually another builder's */
   generic_words?: string[];
 }
@@ -48,6 +55,8 @@ export type WrittenKind = NegKind | "different" | "none";
 /** A negative in the account that blocks searches we want (they converted, the sheet said Add, or they are keywords). */
 export interface CostlyNeg {
   campaign: string; project: string; ad_group: string; level: "campaign" | "ad group"; text: string; match: string; words: number;
+  /** the shared list it sits in ("" when it is on the campaign or ad group itself) */
+  list: string;
   junk: number; junk_cost: number;
   /** the junk searches it blocks, costliest first: these can be negated one by one instead of the word */
   junk_terms: string[];
@@ -83,6 +92,8 @@ export interface Search {
   blocked: "yes" | "partly" | "no";
   intent: Intent | "";
   intent_why: string;
+  /** a brand search in a non-brand or competitor campaign: SOP rule 1 says it belongs to the brand campaign */
+  sop_brand: boolean;
   blockers: Blocker[];
   /** shared negative lists attached to the campaign: their contents are not loaded, so "not blocked" may still be covered there */
   lists: string[];
@@ -129,6 +140,10 @@ export function buildLedger(H: Helpers, inp: {
     known: new Set([ir.generic_words ?? [], ir.buy_words, ir.city_words, ir.low_words, ir.county_other_projects, ...Object.values(ir.brand), ...Object.values(ir.our_places)]
       .flat().flatMap((p) => H.tok(p))),
   };
+  const brandW = ir ? toks(ir.brand_words ?? []) : [];
+  const outsideBrand = (c: string) => { const k = campaignKind(c); return k === "Non-brand" || k === "Competitor"; };
+  /** a negative of our brand word in a non-brand or competitor campaign (SOP rule 1) */
+  const isSopBrand = (n: InvNeg) => outsideBrand(n.campaign) && brandW.includes(join(n.words));
   /** County's other projects for a campaign of this project (its own name is not "other") */
   const othersFor = (project: string) => (IR ? IR.other.filter((p) => !(IR.brand[project] ?? []).includes(p)) : []);
   const intentOf = (q: string[], project: string): { intent: Intent | ""; why: string } => {
@@ -252,7 +267,7 @@ export function buildLedger(H: Helpers, inp: {
     const blocked: Search["blocked"] = campLevel.length || everyGroup ? "yes" : agBlocked.length ? "partly" : "no";
     const relevant = (campLevel.length ? campLevel : bl.filter((n) => ad_groups.includes(n.ad_group)))
       .sort((x, y) => RANK[kindOf(x.words, a.q, x.match)] - RANK[kindOf(y.words, a.q, y.match)]);
-    const blockers: Blocker[] = relevant.slice(0, 4).map((n) => ({ text: n.text, level: n.ad_group ? "ad group" : "campaign", ad_group: n.ad_group, kind: kindOf(n.words, a.q, n.match), ...(isCountyRule(n) ? { county_rule: true } : {}) }));
+    const blockers: Blocker[] = relevant.slice(0, 4).map((n) => ({ text: n.text, level: n.ad_group ? "ad group" : "campaign", ad_group: n.ad_group, kind: kindOf(n.words, a.q, n.match), ...(isCountyRule(n) ? { county_rule: true } : {}), ...(isSopBrand(n) ? { sop_brand: true } : {}), ...(n.list ? { list: n.list } : {}) }));
     const project = projectOf(a.campaign);
     const it = intentOf(a.q, project);
     const block_kind: Search["block_kind"] = blocked === "yes" && blockers.length ? blockers[0].kind : "";
@@ -278,7 +293,7 @@ export function buildLedger(H: Helpers, inp: {
       match_types: [...new Set(rows.map((r) => str(r.match_type)).filter(Boolean))],
       clicks, cost, conv, first_day: str(rows[0].day), last_day: str(rows[rows.length - 1].day), days: new Set(rows.map((r) => str(r.day))).size,
       verdict, call_day, neg_written: withNeg ? str(withNeg.neg_term).trim() : "", county_comment: withComment ? str(withComment.county_comment).trim() : "",
-      neg_written_kind, block_kind, blocked, intent: it.intent, intent_why: it.why, blockers, lists: listsOf.get(a.campaign) ?? [], is_keyword, cost_after_call, cost_after_deadline, outcome,
+      neg_written_kind, block_kind, blocked, intent: it.intent, intent_why: it.why, sop_brand: outsideBrand(a.campaign) && !!has(a.q, brandW), blockers, lists: listsOf.get(a.campaign) ?? [], is_keyword, cost_after_call, cost_after_deadline, outcome,
     };
     searches.push(search);
     for (const n of bl) { if (!negUse.has(n)) negUse.set(n, []); negUse.get(n)!.push(search); }
@@ -339,16 +354,20 @@ export function buildLedger(H: Helpers, inp: {
   // negatives that block searches we want: converted, the sheet said Add, or an enabled keyword (ad-group negatives
   // count only for searches that ran in that ad group)
   const costly: CostlyNeg[] = [];
+  const listOfNeg = (n: InvNeg) => n.list ?? "";
   for (const [n, list] of negUse) {
     const hit = list.filter((x) => !n.ad_group || x.ad_groups.includes(n.ad_group));
     // only where the search is really stopped: an ad-group negative that steers a search to another ad group of the
-    // same campaign (where it still runs) is sorting, not blocking
-    const good = hit.filter((x) => x.blocked === "yes" && (x.conv > 0 || x.verdict === "Add" || x.is_keyword));
-    // County's rule: other County project names are negated on purpose
-    if (!good.length || good.every((x) => join(H.tok(x.term)) === join(n.words)) || isCountyRule(n)) continue;
+    // same campaign (where it still runs) is sorting, not blocking; and an ad-group negative is not the cause when a
+    // campaign-level negative (or shared list) already stops the search
+    // SOP rule 1: a brand search in a non-brand or competitor campaign belongs to the brand campaign, so blocking it there is no loss
+    const good = hit.filter((x) => x.blocked === "yes" && !x.sop_brand && (x.conv > 0 || x.verdict === "Add" || x.is_keyword)
+      && (!n.ad_group || !x.blockers.some((b) => b.level === "campaign")));
+    // County's rule: other County project names are negated on purpose; SOP rule 1: brand words in non-brand campaigns
+    if (!good.length || good.every((x) => join(H.tok(x.term)) === join(n.words)) || isCountyRule(n) || isSopBrand(n)) continue;
     const junk = hit.filter((x) => x.verdict === "Exclude" && x.conv === 0);
     costly.push({
-      campaign: n.campaign, project: projectOf(n.campaign), ad_group: n.ad_group, level: n.ad_group ? "ad group" : "campaign", text: n.text, match: n.match, words: n.words.length,
+      campaign: n.campaign, project: projectOf(n.campaign), ad_group: n.ad_group, level: n.ad_group ? "ad group" : "campaign", list: listOfNeg(n), text: n.text, match: n.match, words: n.words.length,
       junk: junk.length, junk_cost: junk.reduce((s, x) => s + x.cost, 0), junk_terms: junk.sort((x, y) => y.cost - x.cost).map((x) => x.term),
       good: good.sort((x, y) => IRANK[x.intent || "low"] - IRANK[y.intent || "low"] || y.conv - x.conv || y.cost - x.cost)
         .map((x) => ({ term: x.term, conv: x.conv, cost: x.cost, why: x.conv > 0 ? "converted" : x.verdict === "Add" ? "sheet said Add" : "our keyword", intent: x.intent })),
@@ -359,7 +378,9 @@ export function buildLedger(H: Helpers, inp: {
   costly.sort((x, y) => IRANK[x.top_intent || "low"] - IRANK[y.top_intent || "low"] || y.good_conv - x.good_conv || y.good_cost - x.good_cost);
 
   return {
-    from, to, grace, costly_negatives: costly, inventory_as_of: inp.inv?.as_of ?? "", total, searches,
+    from, to, grace, costly_negatives: costly,
+    /** every ad group of each campaign (seen in the period, or with enabled keywords) */
+    ad_groups_of: Object.fromEntries([...groupsOf].map(([c, g]) => [c, [...g].sort()])) as Record<string, string[]>, inventory_as_of: inp.inv?.as_of ?? "", total, searches,
     by_project: byProject, by_kind: byKind, by_campaign: byCampaign,
     by_ad_group: [...agMap.values()].sort((x, y) => y.cost - x.cost),
     by_match: [...mtMap.values()].sort((x, y) => y.cost - x.cost),

@@ -15,7 +15,7 @@ import type { Model } from "@/lib/types";
 export const PROJECT_TABS = ["overview", "campaigns", "terms", "keywords", "agency", "ctm"] as const;
 export type ProjectTab = (typeof PROJECT_TABS)[number];
 
-export function ProjectTabs({ model, id, initial }: { model: Model; id: string; initial: ProjectTab }) {
+export function ProjectTabs({ model, id, initial, agency }: { model: Model; id: string; initial: ProjectTab; agency?: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const hasKw = !!model.keywords;
@@ -97,7 +97,7 @@ export function ProjectTabs({ model, id, initial }: { model: Model; id: string; 
       <TabsContent value="campaigns"><ProjectCampaigns model={model} id={id} /></TabsContent>
       <TabsContent value="terms"><ProjectTerms model={model} id={id} /></TabsContent>
       {hasKw ? <TabsContent value="keywords"><ProjectKeywords model={model} id={id} /></TabsContent> : null}
-      <TabsContent value="agency"><ProjectAgency model={model} id={id} /></TabsContent>
+      <TabsContent value="agency">{agency ?? <ProjectAgency model={model} id={id} />}</TabsContent>
       {hasCtm ? <TabsContent value="ctm"><ProjectCtm model={model} /></TabsContent> : null}
     </Tabs>
   );

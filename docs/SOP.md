@@ -1,6 +1,6 @@
 # SOP: Daily search-terms review (STR) for County Group Google Ads
 
-Version 0.2 draft, 6 Nov 2026. Owner: County QC lead. Approver: County approver (proposed).
+Version 0.4 draft, 25 Nov 2026. Owner: County QC lead. Approver: County approver (proposed).
 
 ## 0. What an SOP is, and why we need one
 
@@ -75,12 +75,20 @@ Write **Leave** in the Status column instead of leaving it blank. A blank cell c
 
 **County's rule (owner, 22 Nov 2026): negate the search term itself, never a single word.** When a row is Exclude (and when County writes a comment on it), the negative column must hold the **full search term**, written as a phrase (`"pm awas gramin report"`) or exact (`[pm awas gramin report]`). A part of two or more of its words is fine when that part can only mean junk (`"pm awas"`). A single word in broad or phrase match (`-ivy`, `-107`, `-flat`, `-m`) blocks every search that contains it, in every combination, including searches we pay for; use one only when the word can never be part of a County search (for example `rent`, `pg`, `jobs`), and then put it in the shared list.
 
+How Google Ads reads a negative (Google Ads Help, "About negative keywords" and "About negative keyword lists"):
+- **Negatives do not stretch to close variants.** `-flat` does not stop "flats", and `-flower` does not stop "flowers". Positive keywords do match close variants, so a junk search can keep arriving in a new spelling.
+- **Broad negative** (`-ats pristine`): blocks a search that has all its words, in any order. **Phrase** (`-"ats pristine"`): the words together, in that order. **Exact** (`-[ats pristine noida]`): only that search, with no extra words.
+- **Levels:** a campaign negative stops the search in the whole campaign; an ad-group negative only in that ad group (the search can still run in another ad group of the campaign); a shared negative list works like a campaign negative in every campaign it is attached to.
+- **Limits:** up to 10,000 negatives per campaign, 5,000 per shared list and 20 shared lists per account (Google's limits page; check it before planning a very large list). Jade Brand NCR held 15,706 negatives on 25 Nov (3,161 campaign level, 12,545 in ad groups).
+- **Shared lists are not exported** by the negative keyword report (it only names them). The change history shows each word added to or removed from a list, so the dashboard knows the words added since 1 Oct; older ones stay unknown.
+
 What the dashboard checks every day against this rule:
-- **Overview › Done** counts how each blocked junk search is blocked: by its own full term (safe), by part of it, or only by one word. On 22 Nov: 1,512 by the full term, 61 by part, 53 by one word.
-- **Overview › Still to do** shows how the sheet writes its negatives: on 22 Nov, 879 of 1,924 Exclude calls gave a single word and 274 gave none (the 20 and 21 Nov tabs had almost all blank).
+- **Overview › The agency's scorecard › How the negatives went in**: for every junk search blocked today, the most specific negative that went in on the first day it was blocked (full search, part of it, or one word). On 25 Nov: 1,541 by the full search, 161 by part of it, 175 by one word.
+- **Agency report › 5 · How the sheet writes its negatives**: week by week, how often the sheet's negative column gives one word or nothing. On 25 Nov: 947 of 2,030 Excludes gave one word and 248 gave nothing.
+- **Negatives › One-word negatives added in the last 30 days**: every single word that went in as a broad or phrase negative, with who and where (859 in the 30 days to 25 Nov), red where it now blocks a search we want or our own keyword.
+- **Negatives › Negatives that block searches we want** (also on the Fix list): a negative that stops a high- or medium-intent search that converted, that the sheet said to Add, or that is our keyword, with the junk searches to negate instead. Left out on purpose: negatives that only block low-intent searches (`-prestige`), County's other project names (County's rule, 22 Nov), our brand words in non-brand and competitor campaigns (rule 1 in section 6), and ad-group negatives where a campaign-level negative already stops the search.
 - **Fix list › Junk searches still not blocked** always suggests the full search term as the negative, and says when the sheet wrote one word or nothing.
-- **Fix list › Negatives blocking searches we want** lists every negative in the account that also blocks a high- or medium-intent search that converted, that the sheet said to Add, or that is our keyword, with the junk searches to negate instead (for example `-house` in Ivory Non-brand blocks the Adds "3 bhk house in noida" and "house for sale in noida"). Negatives that only block low-intent searches (`-prestige`, a group name) and County's other project names are left out on purpose.
-- **Blocked means stopped in the whole campaign**: a negative at campaign level, or in every ad group. An ad-group negative that leaves other ad groups open only steers the search, so the dashboard counts it as "blocked only in some ad groups".
+- **Blocked means stopped in the whole campaign**: a negative at campaign level, in a shared list the campaign uses, or in every ad group. A negative in only some ad groups steers the search; when it sits in another ad group than the one the search ran in, the Exclude is marked **Wrong place**.
 
 1. **Use the smallest negative that removes the junk.** Prefer the project name as a phrase (`"skyline suites"`) over a single word (`skyline`).
 2. **Never** use a bare number (`-62`, `-24`, `-124`), or a single common property word (home, house, flat, project, society, villa, sector, city, new, greater) as a campaign-wide broad negative.
@@ -95,19 +103,21 @@ Keep the current columns, and add: **Level** (ad group / campaign / shared list)
 
 ## 9. Daily QC checklist (County QC lead, about 15 minutes with the dashboard)
 
-1. *Load data*: three files loaded; the agency tab's spend matches Google's report for that day.
-2. *Command centre*: read "Decisions waiting", red first.
-3. *Daily STR review*, filter "Flagged, no call": comment on each row.
-4. *Said vs done*: overdue Excludes and Adds; chase anything older than the service level.
-5. *Account risks*: brand campaigns paying for non-brand searches, brand searches in non-brand campaigns, keywords blocked by our own negatives, risky campaign-wide negatives.
-6. Once a week: load the campaign report and keyword report, then read *Campaign health*, *Keyword quality* and the *Ivory CTM case*.
+1. *Data*: import the new reports; the agency tab's spend matches Google's report for that day.
+2. *Day by day*: the newest tabs (did their calls go in, and when) and the right-hand list (who changed what in Google Ads; a weekday with **No change** is a question for the agency).
+3. *Overview*: the scorecard and *What to raise*, red first.
+4. *Fix list*: tick *Only past the deadline*, download the CSV and send it to the agency.
+5. *Negatives*: new one-word negatives, and negatives that block searches we want.
+6. Before a meeting: print *Agency report* (every mistake, with the change-history time, the person and the place in Google Ads). Click any row for the search's full story.
+7. Once a week: load the campaign report and keyword report, then read *Performance* (campaigns, keywords) and the project pages.
 
 ## 10. What we measure every week
 
 | Measure | How it is counted |
 |---|---|
-| Calls applied on time | Exclude and Add calls in the account within 1 working day ÷ all calls |
-| Overdue backlog | calls past 3 days and not in the account, with the spend on those rows |
+| Calls applied on time | Exclude calls in the account by the deadline (sheet day + 3 days) ÷ Excludes past their deadline; the same for Adds (*Overview › Week by week*) |
+| Money lost to delay | spend on a search after its deadline, up to the day its negative went in (or up to the last tab, if it is still not in) |
+| Overdue backlog | calls past the deadline and not in the account (*Fix list*, *Only past the deadline*) |
 | Brand leakage | spend in brand campaigns on searches with no brand word, and brand searches inside non-brand |
 | Self-blocks | our own keywords blocked by our own negatives |
 | Junk share | spend on rows called Exclude ÷ all reviewed spend |
@@ -120,8 +130,13 @@ Keep the current columns, and add: **Level** (ad group / campaign / shared list)
 - Ivory Non-brand still runs Villa and Pent House ad groups although Ivory sells neither.
 - Conversions are not yet linked to CRM lead quality, so "it converted" cannot yet mean "it was a good lead".
 
+## 12. After the search terms: what comes next
+
+Once the searches are clean, the same daily discipline moves to the three parts of Quality Score that Google reports for each keyword: **expected click-through rate**, **ad relevance** and **landing page experience** (Search keywords report, Quality Score columns, already loaded weekly on *Performance › Keywords*). The keyword report of 13 Nov showed 67% of keyword spend on keywords with a below-average landing page experience (Ivory 90%), so landing pages are the first candidate.
+
 ## Version notes
 
 - 0.1 (6 Nov 2026): first draft from the 15 Oct to 5 Nov data.
 - 0.2 (6 Nov 2026): project prices and configurations added; numbers re-checked against the change history from 1 Oct.
 - 0.3 (22 Nov 2026): County's rule "negate the full search term, never one word" added to section 7, with the dashboard checks that follow it.
+- **0.4 (25 Nov 2026):** how Google reads negatives (close variants, match types, levels, limits, shared lists); the checks now live on Overview, Agency report, Day by day, Negatives and Fix list; deadline-based measures; section 12 (what comes after the search terms).

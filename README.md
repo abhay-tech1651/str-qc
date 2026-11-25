@@ -29,18 +29,22 @@ Work on one computer at a time and save before you switch. If both computers imp
 
 | Page | Question it answers |
 |---|---|
-| Overview | Last 7 days in one sentence, the most urgent issues, every project on one card, daily spend, the agency report card |
-| Issues to fix | Every open problem, who fixes it (Agency / County / Google CTM team), with a ready-to-send message for the agency |
-| Ivory · Clove · Cocoa · Jade | One page per project, all built the same way: issues, campaigns, search terms, keywords, agency follow-through (Ivory also has the CTM case) |
-| Said vs done | Every Add and Exclude in the agency sheet, checked against the Google Ads change history |
-| Search terms | Every search with a click, day by day, with the agency's call and an automatic flag |
-| Campaigns · Keywords · Competitors | Can each campaign show its ads, Quality Score and landing pages, who we meet in the auction |
-| Import data · How to read this | Getting data in; the words and rules used; the handbook |
+| Overview | Did the agency do what the sheet said? Excludes on time, late and not done, the money spent after deadlines, Adds not done, negatives that hurt us, what to raise, week by week |
+| Agency report | Every mistake with its proof (change-history time, person, place in Google Ads, rupees after the deadline), printable for a meeting |
+| Day by day | Each sheet tab and what happened to its calls; each day in Google Ads, who changed what, and weekdays with no change |
+| Fix list | What is still open, where to fix it in Google Ads, as a CSV for the agency |
+| Negatives | Campaign level, ad group or shared list; the full search or one word; negatives that block searches we want; one-word negatives added |
+| Every search | Every search that cost money; click one for its full story (first seen, the sheet's call, deadline, when it went in, money) |
+| Ivory · Clove · Cocoa · Jade | One page per project: campaigns, search terms, keywords, and the same agency scorecard for that project |
+| Performance | Campaigns, keywords, search terms, competitors |
+| Data · How to read this | Getting data in; the words and rules used; the handbook |
+
+All agency numbers (Overview, Agency report, Day by day, Negatives, Fix list, project Agency tabs) come from one place, `dashboard/lib/audit.ts`, so two pages never disagree.
 
 ## How the numbers are made (and checked)
 
 - `apps-script/00_Util.js`, `01_Config.js`, `10_Parse.js`, `20_Model.js`, `30_Store.js`: the calculation engine (plain JavaScript). The dashboard loads these files unchanged.
-- `strqc/model.py`: the Python reference that specifies every rule. `npm test` (in this folder) runs 102 checks, including field-by-field parity between the engine and the reference (those need the unlocked data and skip without it).
+- `strqc/model.py`: the Python reference that specifies every rule. `npm test` (in this folder) runs 116 checks, including field-by-field parity between the engine and the reference (those need the unlocked data and skip without it).
 - On 7 Nov 2026 the dashboard's numbers on the live data equalled the reference with 0 differences, and every day's search-term spend equalled the agency sheet except 22 Oct (+₹1,212.97) and 28 Oct (+₹78.50), where Google's report has searches the sheet missed.
 
 ## Folders

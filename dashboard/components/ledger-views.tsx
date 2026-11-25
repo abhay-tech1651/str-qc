@@ -10,7 +10,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { DataTable, type Column } from "./data-table";
 import { Card, ProjectTag, Select } from "./ui";
-import { MoneyBar, OutcomeTag, SearchDrawer, accountNow, type PartAmount } from "./money";
+import { MoneyBar, OutcomeTag, accountNow, type PartAmount } from "./money";
+import { CaseFile } from "./case-file";
 import { cn, dshort, inr, n0, pcolor } from "@/lib/format";
 import { OUTCOMES, type Outcome, type Search } from "@/lib/ledger-core";
 import { OPEN, PARTS, PART_OF, parts as partsOf } from "@/lib/outcomes";
@@ -113,7 +114,7 @@ export function SearchesView({ searches, labels, projects, init }: {
 
       <DataTable rows={rows as unknown as Record<string, unknown>[]} columns={columns as unknown as Column<Record<string, unknown>>[]} csvName={`searches-${project || "all"}`} initialSort={{ key: "cost", dir: "desc" }}
         onRowClick={(r) => setSel(r as unknown as Search)} empty="No search matches these filters." />
-      <SearchDrawer s={sel} onClose={() => setSel(null)} label={lab} />
+      <CaseFile id={sel?.id ?? null} onClose={() => setSel(null)} label={lab} />
     </>
   );
 }
@@ -169,7 +170,7 @@ export function FixView({ items, types, searches, labels, projects, init }: {
         initialSort={{ key: "cost", dir: "desc" }} empty="Nothing open here."
         toolbar={<><label className="flex h-9 items-center gap-1.5 rounded-md border bg-card px-2.5 text-[13px]"><input type="checkbox" checked={!!late} onChange={(e) => setLate(e.target.checked ? "1" : "")} /> Only past the deadline</label><Select aria-label="Project" value={project} onChange={(e) => setProject(e.target.value)} className="h-9 w-[150px]"><option value="">All projects</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select></>}
         onRowClick={(r) => { const s = byId.get((r as unknown as FixItem).id); if (s) setSel(s); }} />
-      <SearchDrawer s={sel} onClose={() => setSel(null)} label={lab} />
+      <CaseFile id={sel?.id ?? null} onClose={() => setSel(null)} label={lab} />
     </>
   );
 }

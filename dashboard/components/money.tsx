@@ -1,13 +1,12 @@
 "use client";
 /**
- * The money map: one bar split into the six parts of the ledger (outcomes.ts), the list that names each part, and the
- * drawer that tells one search's whole story (what it cost, what the sheet said, what is in Google Ads now).
+ * The money map: one bar split into the six parts of the ledger (outcomes.ts) and the list that names each part.
+ * The story of one search is in case-file.tsx.
  */
-import * as React from "react";
 import Link from "next/link";
-import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
-import { Badge, Sheet, Tip } from "./ui";
-import { cn, dlong, dshort, inr, n0 } from "@/lib/format";
+import { CircleAlert } from "lucide-react";
+import { Badge, Tip } from "./ui";
+import { cn, inr, n0 } from "@/lib/format";
 import { PARTS, PART_OF, OUTCOME_LABEL, type Part } from "@/lib/outcomes";
 import type { Outcome, Search } from "@/lib/ledger-core";
 
@@ -84,69 +83,3 @@ export function accountNow(s: Pick<Search, "blocked" | "blockers" | "is_keyword"
   if (s.is_keyword) return "It is a keyword";
   return s.lists.length ? "Not blocked by any campaign or ad-group negative" : "Not blocked";
 }
-
-interface Seen { day: string; campaign: string; ad_group: string; clicks: number; cost: number }
-interface ChangeLine { ts: string; day: string; user: string; campaign: string; ad_group: string; item: string; same_campaign: boolean }
-
-/** One search, start to finish. */
-export function SearchDrawer({ s, onClose, label }: { s: Search | null; onClose: () => void; label: (c: string) => string }) {
-  const [ev, setEv] = React.useState<{ seen: Seen[]; matches: ChangeLine[] } | null>(null);
-  const [err, setErr] = React.useState("");
-  React.useEffect(() => {
-    if (!s) return;
-    setEv(null);
-    setErr("");
-    const q = new URLSearchParams({ term: s.term, campaign: s.campaign, ad_group: s.ad_groups[0] ?? "", day: s.first_day, kind: s.verdict === "Add" ? "add" : "exclude" });
-    fetch(`/api/evidence?${q}`, { cache: "no-store" }).then((r) => r.json()).then((b) => (b.error ? setErr(b.error) : setEv(b))).catch(() => setErr("The dashboard could not be reached."));
-  }, [s]);
-  if (!s) return <Sheet open={false} onOpenChange={() => onClose()} title="">{null}</Sheet>;
-  const seen = (ev?.seen ?? []).filter((x) => x.campaign === s.campaign);
-  const lines = (ev?.matches ?? []).filter((m) => m.same_campaign);
-  return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title={<span>“{s.term}”</span>} description={`${label(s.campaign)} · ${s.ad_groups.join(", ")}`}>
-      <div className="space-y-6 text-sm">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[["Spent", inr(s.cost)], ["Clicks", n0(s.clicks)], ["Conversions", n0(s.conv)], ["Days seen", n0(s.days)]].map(([k, v]) => (
-            <div key={k} className="rounded-lg border bg-card px-3 py-2"><div className="text-xs text-muted-foreground">{k}</div><div className="tabular text-base font-semibold">{v}</div></div>
-          ))}
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <div className="mb-2 flex items-center justify-between gap-2"><span className="font-medium">Where it stands</span><OutcomeTag o={s.outcome} /></div>
-          <dl className="grid grid-cols-[130px_1fr] gap-x-3 gap-y-1.5 text-[13px]">
-            <dt className="text-muted-foreground">First seen</dt><dd>{dlong(s.first_day)}{s.last_day !== s.first_day ? `, last ${dlong(s.last_day)}` : ""}</dd>
-            <dt className="text-muted-foreground">The sheet said</dt><dd>{s.verdict}{s.call_day ? ` (${dshort(s.call_day)} tab)` : ""}</dd>
-            {s.intent ? <><dt className="text-muted-foreground">Buying intent</dt><dd><span className={cn("font-medium", s.intent === "high" ? "text-good" : s.intent === "low" ? "text-muted-foreground" : "")}>{s.intent[0].toUpperCase() + s.intent.slice(1)}</span><span className="text-muted-foreground"> · {s.intent_why}</span></dd></> : null}
-            {s.neg_written ? <><dt className="text-muted-foreground">Negative written</dt><dd><span className="font-mono text-[12.5px]">{s.neg_written}</span>{WRITTEN[s.neg_written_kind] ? <span className="text-muted-foreground"> · {WRITTEN[s.neg_written_kind]}</span> : null}</dd></> : s.verdict === "Exclude" ? <><dt className="text-muted-foreground">Negative written</dt><dd className="text-muted-foreground">None in the sheet</dd></> : null}
-            {s.county_comment ? <><dt className="text-muted-foreground">County comment</dt><dd>{s.county_comment}</dd></> : null}
-            <dt className="text-muted-foreground">Google Ads now</dt><dd>{accountNow(s)}{s.block_kind ? <span className={cn("block text-[12.5px]", s.block_kind === "one_word" ? "text-bad" : "text-muted-foreground")}>{BLOCK_KIND[s.block_kind]}</span> : null}</dd>
-            {s.lists.length && s.blocked !== "yes" ? <><dt className="text-muted-foreground">Shared lists</dt><dd>{s.lists.join(", ")}: their contents are not loaded, so it may be blocked there.</dd></> : null}
-            {s.cost_after_call > 0 ? <><dt className="text-muted-foreground">After the call</dt><dd>{inr(s.cost_after_call)} spent after the sheet said Exclude{s.cost_after_deadline > 0 ? `, ${inr(s.cost_after_deadline)} of it after the 3-day deadline` : ""}</dd></> : null}
-            <dt className="text-muted-foreground">Matched by</dt><dd>{s.match_types.join(", ")}{s.keywords.length ? ` · keyword ${s.keywords.join(", ")}` : ""}</dd>
-          </dl>
-        </div>
-        <div>
-          <div className="mb-2 font-medium">Every day it cost money</div>
-          {err ? <p className="text-bad">{err}</p> : !ev ? <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading…</p> : (
-            <div className="overflow-hidden rounded-lg border">
-              <table className="w-full text-[13px]"><thead className="bg-muted/60 text-left text-xs text-muted-foreground"><tr><th className="px-3 py-1.5">Day</th><th className="px-3 py-1.5">Ad group</th><th className="px-3 py-1.5 text-right">Clicks</th><th className="px-3 py-1.5 text-right">Cost</th></tr></thead>
-                <tbody className="divide-y">{seen.map((x, i) => (
-                  <tr key={i} className={cn(s.call_day && x.day > s.call_day && s.verdict === "Exclude" && "bg-bad-soft/60")}><td className="px-3 py-1.5">{dshort(x.day)}</td><td className="px-3 py-1.5">{x.ad_group}</td><td className="tabular px-3 py-1.5 text-right">{n0(x.clicks)}</td><td className="tabular px-3 py-1.5 text-right">{inr(x.cost)}</td></tr>
-                ))}</tbody></table>
-            </div>
-          )}
-          {s.verdict === "Exclude" ? <p className="mt-2 text-xs text-muted-foreground">Shaded rows came after the sheet said Exclude.</p> : null}
-        </div>
-        {lines.length ? (
-          <div>
-            <div className="mb-2 font-medium">{s.verdict === "Add" ? "Keyword added (change history)" : "Negatives added that block it (change history)"}</div>
-            <ul className="space-y-1 text-[13px]">{lines.map((m, i) => (
-              <li key={i} className="flex flex-wrap items-center gap-2"><CheckCircle2 className="size-4 text-good" /><span className="font-mono text-[12.5px]">{m.item}</span><span className="text-muted-foreground">{m.ad_group} · {dshort(m.day)} {m.ts.slice(11, 16)} · {m.user.split("@")[0]}</span></li>
-            ))}</ul>
-          </div>
-        ) : null}
-        <p className="text-xs text-muted-foreground">Spend and clicks: Google's search terms report. “Google Ads now”: the negative keyword report and keyword report you loaded last.</p>
-      </div>
-    </Sheet>
-  );
-}
-

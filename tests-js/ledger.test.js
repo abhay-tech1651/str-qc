@@ -112,3 +112,28 @@ test('buildLedger: a keyword added in the change history counts as added', async
   });
   assert.strictEqual(led.searches[0].outcome, 'add_done');
 });
+
+test('buildLedger: SOP rule 1 (brand words in non-brand) and ad-group negatives that are not the cause', async () => {
+  const { buildLedger } = await core();
+  const intent = {
+    brand: { ivory: ['ivory'] }, our_places: { ivory: ['sector 115'] }, county_other_projects: [],
+    buy_words: ['flats', 'society'], city_words: ['noida'], low_words: [], generic_words: ['in', 'best', 'group'],
+    brand_words: ['county', 'county group', 'ivory'],
+  };
+  const led = buildLedger(H, {
+    from: '2026-11-01', to: '2026-11-10', grace: 3, projectOf: () => 'ivory', intent,
+    searchTerms: [st('2026-11-02', 'county group noida', 'Flats', 500), st('2026-11-02', 'best society in noida', 'Flats', 300)],
+    calls: [call('2026-11-02', 'county group noida', 'Add'), call('2026-11-02', 'best society in noida', 'Add')],
+    keywords: [{ keyword_status: 'Enabled', campaign: C, ad_group: 'Societies', keyword: 'society in noida' }],
+    changes: [],
+    inv: { as_of: '2026-11-10', name: 'x', lists: [], negatives: [neg('county', 'broad'), neg('"best society"', 'phrase'), neg('society', 'broad', 'Flats')] },
+  });
+  const by = Object.fromEntries(led.searches.map((s) => [s.term, s]));
+  assert.strictEqual(by['county group noida'].sop_brand, true, 'a brand search in a non-brand campaign');
+  assert.strictEqual(by['county group noida'].blockers[0].sop_brand, true, '-county in a non-brand campaign follows SOP rule 1');
+  assert.strictEqual(by['best society in noida'].sop_brand, false);
+  const costly = led.costly_negatives.map((n) => `${n.text}|${n.ad_group}`);
+  assert.ok(!costly.some((c) => c.startsWith('county|')), 'the brand-word negative is not flagged');
+  assert.ok(costly.includes('"best society"|'), 'the campaign-level phrase is what stops the Add');
+  assert.ok(!costly.includes('society|Flats'), 'the ad-group -society is not the cause: the campaign-level negative already stops the search');
+});

@@ -30,7 +30,7 @@ export function IssueEvidence({ fix, model }: { fix: Fix; model: Model }) {
     case "overdue_excludes":
       rows = mine(model.agency.overdue_excludes);
       cols = [day(), txt("term", "Search term", { render: (r) => <span className="font-medium">{String(r.term)}</span> }), camp, money("cost"), code("neg_term", "Negative written")];
-      note = "Open Said vs done › Never applied and click a row to see where (if anywhere) a matching negative went in.";
+      note = "Open Agency report › Excludes that are still not working, and click a row for the full story of the search.";
       break;
     case "overdue_adds":
       rows = mine(model.agency.overdue_adds);

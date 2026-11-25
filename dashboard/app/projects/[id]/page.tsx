@@ -8,9 +8,35 @@ import { StatCard } from "@/components/blocks";
 import { ProjectTabs, type ProjectTab } from "@/components/project-tabs";
 import type { Model } from "@/lib/types";
 import { periodData, periodModel } from "@/lib/period";
+import { getAudit } from "@/lib/audit";
+import { addSegs, exSegs } from "@/lib/follow-labels";
+import { FollowTable, ScoreBar } from "@/components/audit-views";
+import { Card } from "@/components/ui";
+import { n0 as count, dshort as dsh, inr as rupees } from "@/lib/format";
+
+/** The project's Agency tab: the same scorecard and rows as the Overview and the Agency report, for this project only. */
+function agencyTab(id: string) {
+  const A = getAudit();
+  if (!A) return null;
+  const mine = A.agency.filter((f) => f.project === id);
+  const c = A.byProject.find((p) => p.id === id)?.card;
+  if (!c) return null;
+  const rows = mine.filter((f) => f.status !== "on_time" && f.status !== "already");
+  return (
+    <div className="space-y-4">
+      <Card className="grid gap-8 p-5 lg:grid-cols-2">
+        <ScoreBar title={`Excludes: ${count(c.ex.n)}`} segs={exSegs(c)} note={`${rupees(c.ex.cost_late_done + c.ex.cost_leaking)} spent after the deadline. Sheet tabs ${dsh(A.led.from)} to ${dsh(A.led.to)}, account as of ${dsh(A.asOf)}.`} />
+        <ScoreBar title={`Adds: ${count(c.add.n)}`} segs={addSegs(c)} />
+      </Card>
+      <p className="text-[13px] text-muted-foreground">Every call that was late, is not done, or went to the wrong place ({count(rows.length)}). Click a row for the search&apos;s full story.</p>
+      <FollowTable rows={rows} labels={A.labels} cols={["term", "campaign", "day", "due", "status", "went", "how", "late", "cost_late"]} csvName={`agency-${id}`} sort={{ key: "days_late", dir: "desc" }} />
+    </div>
+  );
+}
 
 export const dynamic = "force-dynamic";
 
+const OLD_AGENCY = new Set(["overdue_excludes", "overdue_adds", "no_negative_written", "risky_negatives", "blocked_keywords"]);
 const TABS: ProjectTab[] = ["overview", "campaigns", "terms", "keywords", "agency", "ctm"];
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -28,7 +54,8 @@ function forProject(m: Model, id: string): Model {
   return {
     ...m,
     campaigns: m.campaigns.map((c) => (c.project === id ? c : { ...c, series: [] })),
-    fixes: mine(m.fixes),
+    // the agency's follow-through comes from the one engine (lib/audit.ts) on the Agency tab, not from these older checks
+    fixes: mine(m.fixes).filter((f) => !OLD_AGENCY.has(f.type)),
     agency: { ...m.agency, overdue_excludes: mine(m.agency.overdue_excludes), overdue_adds: mine(m.agency.overdue_adds), no_negative_rows: mine(m.agency.no_negative_rows), by_day: [] },
     risks: { ...m.risks, brand_no_word: mine(m.risks.brand_no_word), brand_leak: mine(m.risks.brand_leak), blocked: mine(m.risks.blocked), risky: mine(m.risks.risky), conflicts: mine(m.risks.conflicts), leaks: mine(m.risks.leaks), repeats: mine(m.risks.repeats) },
     keywords: m.keywords ? { ...m.keywords, no_conv: mine(m.keywords.no_conv), low_quality: mine(m.keywords.low_quality), duplicates: mine(m.keywords.duplicates), product_mismatch: mine(m.keywords.product_mismatch) } : null,
@@ -66,7 +93,9 @@ export default async function ProjectPage({ params, searchParams }: Props) {
   const camps = m.campaigns.filter((c) => c.project === id);
   const hasCamp = camps.length > 0 && !!ps;
   const color = pcolor(id);
-  const fixes = m.fixes.filter((f) => f.project === id);
+  // County and performance checks; the agency's follow-through counts come from the one engine (Fix list, Agency tab)
+  const fixes = m.fixes.filter((f) => f.project === id && !OLD_AGENCY.has(f.type));
+  const bp = getAudit()?.byProject.find((x) => x.id === id);
   const urgent = fixes.filter((f) => f.severity === "high").length;
   const toFix = fixes.filter((f) => f.severity === "medium").length;
   const toDecide = fixes.filter((f) => f.severity === "low").length;
@@ -89,6 +118,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
         description={description || undefined}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {bp?.overdue ? <Link href={`/fix?project=${id}&late=1`}><Badge tone="bad" className="px-2.5 py-1 text-[13px]">{bp.overdue} past the agency&apos;s deadline</Badge></Link> : null}
             {urgent ? <Badge tone="bad" className="px-2.5 py-1 text-[13px]">{urgent} urgent</Badge> : null}
             {toFix ? <Badge tone="warn" className="px-2.5 py-1 text-[13px]">{toFix} to fix</Badge> : null}
             {toDecide ? <Badge tone="muted" className="px-2.5 py-1 text-[13px]">{toDecide} to decide</Badge> : null}
@@ -99,7 +129,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
 
       <p className="-mt-2 mb-6 max-w-3xl text-sm text-muted-foreground">
         {hasCamp
-          ? <>In {pn} ({drange(w.last7?.from, w.last7?.to)}) {short}&apos;s search ads cost <b className="font-semibold text-foreground">{lakh(ps.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(ps.last7.conv)}</b> Google {plural(ps.last7.conv, "conversion")}. {fixes.length ? <>There {fixes.length === 1 ? "is" : "are"} {fixes.length} {plural(fixes.length, "issue")} open for this project{urgent ? <>, {urgent} of them urgent</> : null}.</> : "Nothing is open for this project."}</>
+          ? <>In {pn} ({drange(w.last7?.from, w.last7?.to)}) {short}&apos;s search ads cost <b className="font-semibold text-foreground">{lakh(ps.last7.cost)}</b> and brought <b className="font-semibold text-foreground">{n1(ps.last7.conv)}</b> Google {plural(ps.last7.conv, "conversion")}. {bp ? <>On the Fix list, {bp.open} {plural(bp.open, "thing")} {bp.open === 1 ? "is" : "are"} open for {short}, {bp.overdue} past the agency&apos;s deadline. </> : null}{fixes.length ? <>{fixes.length} {plural(fixes.length, "check")} on campaigns and keywords {fixes.length === 1 ? "needs" : "need"} a look{urgent ? <>, {urgent} urgent</> : null}.</> : null}</>
           : <>Spend and conversions appear once a campaign report is imported. The search-term and agency checks below already use the agency&apos;s STR sheet.</>}
       </p>
 
@@ -114,7 +144,7 @@ export default async function ProjectPage({ params, searchParams }: Props) {
           sub={hasCamp ? `${lakh(ps.since.cost)} of ${lakh(m.account.since.cost)} since ${dshort(w.since?.from)}` : none} />
       </div>
 
-      <ProjectTabs model={forProject(m, id)} id={id} initial={initial} />
+      <ProjectTabs model={forProject(m, id)} id={id} initial={initial} agency={agencyTab(id)} />
     </>
   );
 }

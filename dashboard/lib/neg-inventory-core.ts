@@ -18,7 +18,11 @@ export type Helpers = {
 type Row = Record<string, unknown>;
 type Match = "exact" | "phrase" | "broad";
 
-export interface InvNeg { text: string; match: Match; words: string[]; campaign: string; ad_group: string }
+export interface InvNeg {
+  text: string; match: Match; words: string[]; campaign: string; ad_group: string;
+  /** set when the negative sits in a shared list attached to the campaign (known from the change history, which shows what went into a list) */
+  list?: string;
+}
 export interface InvList { name: string; campaign: string }
 export interface Inventory { as_of: string; name: string; exported_ms?: number; negatives: InvNeg[]; lists: InvList[] }
 

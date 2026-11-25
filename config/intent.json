@@ -26,6 +26,16 @@
       "countygroup"
     ]
   },
+  "brand_words": [
+    "county",
+    "countygroup",
+    "county group",
+    "ivory",
+    "clove",
+    "cocoa",
+    "jade"
+  ],
+  "brand_words_about": "SOP rule 1 (docs/SOP.md section 6): a search with one of these words in a non-brand or competitor campaign belongs to the brand campaign, so a negative of these words there is correct, and such a search being blocked there is not a loss.",
   "our_places": {
     "ivory": [
       "sector 115",

@@ -7,7 +7,7 @@ import { useTheme } from "next-themes";
 import { Command } from "cmdk";
 import { PeriodPicker } from "./period-picker";
 import {
-  AlertTriangle, BookOpen, ClipboardCheck, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, Upload,
+  BookOpen, Command as CommandIcon, Database, KeyRound, LayoutDashboard, Megaphone, Menu, Moon, Printer, Search, Sun, Swords, Upload,
   Ban, CalendarDays, ListChecks, ListX, Presentation,
 } from "lucide-react";
 import { Button, Tip } from "./ui";
@@ -18,23 +18,21 @@ export interface ShellInfo { projects: ShellProject[]; fresh: string; issues: nu
 
 /** Where to go: the first three answer "where did the money go and what is open"; the rest is detail. Sections have tabs (SectionTabs). */
 const NAV = [
-  { href: "/", label: "Overview", icon: LayoutDashboard, desc: "Where the money went" },
+  { href: "/", label: "Overview", icon: LayoutDashboard, desc: "Did the agency do what the sheet said" },
+  { href: "/report", label: "Agency report", icon: Presentation, desc: "Every mistake, with proof" },
+  { href: "/daily", label: "Day by day", icon: CalendarDays, desc: "Each sheet tab, each change in Google Ads" },
   { href: "/fix", label: "Fix list", icon: ListChecks, desc: "What is still open, and where", badge: "issues" as const },
-  { href: "/searches", label: "Every search", icon: Search, desc: "Each search, its cost and status" },
-  { href: "/meeting", label: "Meeting proof", icon: Presentation, desc: "Points with proof" },
-  { href: "/agency", label: "Agency check", icon: ClipboardCheck, desc: "Day by day, said vs done, negatives" },
+  { href: "/negatives", label: "Negatives", icon: Ban, desc: "Campaign or ad group, full search or one word" },
+  { href: "/searches", label: "Every search", icon: Search, desc: "Each search, its cost and its story" },
   { href: "/campaigns", label: "Performance", icon: Megaphone, desc: "Campaigns, keywords, searches" },
   { href: "/data", label: "Data", icon: Database, desc: "Import and help" },
 ];
 
 /** The pages inside each section, shown as tabs above the page. */
 const SECTIONS: { nav: string; tabs: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] }[] = [
-  { nav: "/agency", tabs: [
-    { href: "/daily", label: "Day by day", icon: CalendarDays },
-    { href: "/agency", label: "Said vs done", icon: ClipboardCheck },
-    { href: "/negatives", label: "Negatives as written", icon: Ban },
-    { href: "/account-negatives", label: "All negatives in account", icon: ListX },
-    { href: "/issues", label: "Issues list", icon: AlertTriangle },
+  { nav: "/negatives", tabs: [
+    { href: "/negatives", label: "Negatives check", icon: Ban },
+    { href: "/account-negatives", label: "Every negative in the account", icon: ListX },
   ] },
   { nav: "/campaigns", tabs: [
     { href: "/campaigns", label: "Campaigns", icon: Megaphone },
@@ -96,7 +94,7 @@ function SidebarBody({ info, onNavigate }: { info: ShellInfo; onNavigate?: () =>
           <div className="text-[11.5px] text-muted-foreground">Google Ads quality check</div>
         </div>
       </Link>
-      {NAV.slice(0, 3).map((it) => (
+      {NAV.slice(0, 6).map((it) => (
         <NavLink key={it.href} href={it.href} active={isActive(it.href)} onClick={onNavigate}>
           <it.icon /> {it.label}
           {"badge" in it && it.badge === "issues" && info.issues ? <span className="ml-auto rounded-full bg-bad-soft px-1.5 text-[11px] font-semibold text-bad tabular">{info.issues}</span> : null}
@@ -111,7 +109,7 @@ function SidebarBody({ info, onNavigate }: { info: ShellInfo; onNavigate?: () =>
         </NavLink>
       ))}
       <div className="pt-4" />
-      {NAV.slice(3).map((it) => (
+      {NAV.slice(6).map((it) => (
         <NavLink key={it.href} href={it.href} active={isActive(it.href)} onClick={onNavigate}><it.icon /> {it.label}</NavLink>
       ))}
       <div className="mt-auto rounded-lg border bg-card px-3 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
@@ -163,7 +161,7 @@ function CommandMenu({ info }: { info: ShellInfo }) {
             </div>
             <Command.List className="max-h-80 overflow-y-auto p-2">
               <Command.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">Nothing matches.</Command.Empty>
-              {[...NAV.slice(0, 4), ...SECTIONS.flatMap((x) => x.tabs)].map((it) => (
+              {[...NAV, ...SECTIONS.flatMap((x) => x.tabs)].filter((it, i, a) => a.findIndex((y) => y.href === it.href) === i).map((it) => (
                 <Command.Item key={it.href} onSelect={() => go(it.href)} className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm data-[selected=true]:bg-muted">
                   <it.icon className="size-4 text-muted-foreground" /> {it.label}
                 </Command.Item>
@@ -182,7 +180,7 @@ function CommandMenu({ info }: { info: ShellInfo }) {
 }
 
 // pages that use "Checked up to" (the sheet day) instead of the old period filter
-const LEDGER_PAGES = new Set(["/", "/fix", "/searches"]);
+const LEDGER_PAGES = new Set(["/", "/fix", "/searches", "/report", "/daily", "/negatives", "/account-negatives"]);
 
 export function Shell({ info, children }: { info: ShellInfo; children: React.ReactNode }) {
   const [mobile, setMobile] = React.useState(false);

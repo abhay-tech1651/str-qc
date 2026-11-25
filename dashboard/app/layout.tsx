@@ -4,7 +4,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Shell, type ShellInfo } from "@/components/shell";
-import { hasData, lastCompleteDay } from "@/lib/store";
+import { config, hasData, lastCompleteDay } from "@/lib/store";
 import { dshort, pcolor } from "@/lib/format";
 import { periodKey, periodModel } from "@/lib/period";
 import { fixList, getLedger } from "@/lib/ledger";
@@ -27,7 +27,8 @@ async function shellInfo(): Promise<ShellInfo> {
   const urgent = (id: string) => overdue.filter((f) => f.project === id).length;
   const ct = m.data.campaign_days?.complete_through;
   const st = m.data.search_terms?.to;
-  const fresh = [ct ? `Campaigns to ${dshort(ct)}` : "Campaigns: not loaded", st ? `search terms to ${dshort(st)}` : ""].filter(Boolean).join(" · ");
+  const ch = String(config().changes_through ?? "");
+  const fresh = [st ? `Search terms to ${dshort(st)}` : "", ch ? `change history to ${dshort(ch)}` : "", ct ? `campaigns to ${dshort(ct)}` : "Campaigns: not loaded"].filter(Boolean).join(" · ");
   return {
     projects: m.projects.map((p) => ({ id: p.id, name: p.name.replace(" County", ""), color: pcolor(p.id), urgent: urgent(p.id) })),
     fresh,

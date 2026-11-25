@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
-  AlertTriangle, ArrowUpRight, BookOpen, ClipboardCheck, Database, FolderKanban, KeyRound, LayoutDashboard, Megaphone, Search, Swords,
+  AlertTriangle, ArrowUpRight, Ban, BookOpen, CalendarDays, ClipboardCheck, Database, FolderKanban, KeyRound, LayoutDashboard, Megaphone, Search, Swords,
 } from "lucide-react";
 import { getModel, hasData } from "@/lib/store";
 import { n0, pcolor } from "@/lib/format";
@@ -15,10 +15,12 @@ export const metadata = { title: "How to read this" };
 type Tone = "bad" | "warn" | "good" | "info" | "muted";
 
 const PAGES: { href: string; name: string; icon: typeof LayoutDashboard; q: string }[] = [
-  { href: "/", name: "Overview", icon: LayoutDashboard, q: "How did search ads do in the last 7 days, and what needs attention first?" },
-  { href: "/issues", name: "Issues to fix", icon: AlertTriangle, q: "What is wrong, how much money does it touch, and who fixes it: the agency, County or Google's CTM team?" },
-  { href: "/agency", name: "Said vs done", icon: ClipboardCheck, q: "Did the agency actually make the changes its own STR sheet says it would?" },
-  { href: "/search-terms", name: "Search terms", icon: Search, q: "What did people type before clicking our ads, and what did the agency decide about each search?" },
+  { href: "/", name: "Overview", icon: LayoutDashboard, q: "Did the agency do what the sheet said: how many Excludes went in on time, late or not at all, what that cost, and what to raise?" },
+  { href: "/report", name: "Agency report", icon: ClipboardCheck, q: "Every mistake with its proof (change history time, person, place in Google Ads, rupees after the deadline), ready to print for a meeting." },
+  { href: "/daily", name: "Day by day", icon: CalendarDays, q: "For each sheet tab, what happened to its calls; for each day, who changed what in Google Ads, and which weekdays had no change." },
+  { href: "/fix", name: "Fix list", icon: AlertTriangle, q: "What is still open, with the exact place in Google Ads to fix it, as a CSV to send to the agency." },
+  { href: "/negatives", name: "Negatives", icon: Ban, q: "Campaign level or ad group, full search or one word: what the sheet wrote, how it went in, and the negatives that block searches we want." },
+  { href: "/searches", name: "Every search", icon: Search, q: "Every search that cost money, and its full story: first seen, the sheet's call, the deadline, when it went in, and the money." },
   { href: "/campaigns", name: "Campaigns", icon: Megaphone, q: "Is each campaign spending its budget, and on how many of the possible searches can it show?" },
   { href: "/keywords", name: "Keywords", icon: KeyRound, q: "Which keywords spend without conversions, sit on weak landing pages or have a low Quality Score?" },
   { href: "/competitors", name: "Competitors", icon: Swords, q: "Who else bids on the same searches, and how often do they appear above us?" },

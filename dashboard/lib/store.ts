@@ -172,6 +172,9 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
   const text = decodeText(buf);
   if (isInventory(text)) return importInventory(name, text, sha, exportedOn, exportedMs);
   const { kind, rows } = parseExport(text);
+  // a keyword report for "All time" has no period end: it is the keyword list as it stood when it was downloaded
+  let allTime = false;
+  if (kind === "keywords") for (const r of rows) if (!r.day) { r.day = exportedOn; allTime = true; }
   if (kind === "unknown" || !rows.length) {
     const head = text.slice(0, 3000);
     const campaignTotals = /	Campaign	|^Campaign	/m.test(head) && /Search impr\. share/.test(head) && !/	Day	|^Day	/m.test(head);
@@ -232,6 +235,7 @@ export function importCsv(name: string, buf: Buffer, exportedOn: string, exporte
     if (whole.length < search.length) parts.push(`${search.length - whole.length} rows for ${exportedOn} or later (that day was not complete when the report was exported)`);
     if (parts.length) note = `left out ${parts.join(" and ")}`;
   }
+  if (allTime) note = `covers all time: dated ${exportedOn}, the day it was downloaded (costs are all-time totals)`;
   const t = kind as Table;
   writeJson(tablePath(t), mergeRows(t, readTable(t), keep));
   rememberSnapshot(kind, keep, exportedMs, name);

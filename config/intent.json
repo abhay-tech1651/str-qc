@@ -1,5 +1,5 @@
 {
-  "about": "How much a search tells us the person wants to buy one of OUR homes. Edit the words here, not the code (dashboard/lib/ledger-core.ts intentOf). A phrase matches whole words. Rules, first that fits: 1) names another County project in a campaign for a different project (County's rule, 22 Nov 2026: negate the other project names) -> low; 2) a low word -> low; 3) names this project (brand) -> high; 4) this project's location plus a buying word -> high; 5) this project's location alone -> medium; 6) a name word (a word in none of the lists below, not a number: usually another builder's project or group, like prestige or enigma) -> low; 7) a city or area plus a buying word -> medium; 8) anything else (a bare city, research) -> low. Rule 6 runs after 4 and 5, so another builder's name next to our location is still high or medium.",
+  "about": "How much a search tells us the person wants to buy one of OUR homes. Edit the words here, not the code (dashboard/lib/ledger-core.ts intentOf). A phrase matches whole words. Rules, first that fits: 1) names another County project in a campaign for a different project (County's rule, 22 Nov 2026: negate the other project names) -> low; 2) a low word -> low; 3) names this project (brand) -> high; 4) this project's location plus a buying word -> high; 5) this project's location alone -> medium; 6) a name word (a word in none of the lists below, not a number: usually another builder's project or group, like prestige or enigma) -> low; 7) a city or area plus a buying word -> medium; 8) anything else (a bare city, research) -> low. Location words (location, directions, route): low, even with our project name, because that person is going to Google Maps, not the ad (owner, 25 Nov 2026). Rule 6 runs after 4 and 5, so another builder's name next to our location is still high or medium.",
   "brand": {
     "ivory": [
       "ivory",
@@ -276,6 +276,12 @@
     "map",
     "address",
     "location map",
+    "location",
+    "locations",
+    "direction",
+    "directions",
+    "route",
+    "how to reach",
     "job",
     "jobs",
     "vacancy",

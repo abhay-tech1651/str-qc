@@ -65,6 +65,10 @@ Ask the questions in order; stop at the first answer.
 7. **Is it a real buyer search with a clear signal that fits the product?** Configuration the project has (Ivory 3/4/5 BHK, Jade 3/4/5 BHK, Cocoa 3/4 BHK), luxury, our sector or corridor, ready to move or new launch → **Add** as a keyword (phrase match) in the right ad group. **Villa and penthouse searches are never an Add for Ivory**: it sells neither.
 8. **Is it relevant but general, with no signal?** *flats in noida*, *noida flat price*, Hinglish without budget or configuration → **Leave** (no Add, no Exclude). This is the agency strategist's rule: adding these as keywords would pull in broad cheap traffic; excluding them would cut volume.
 
+**Judge by buying intent, not by whether a search converted once (owner, 23 Nov 2026).** A search that names our project, or our location with a buying word (*3 bhk in noida sector 115*), is **high**; our location alone, or a city with a buying word (*noida flat purchase*), is **medium**; another builder's project or group (*prestige 150 noida*), another County project, rent, budget or research words are **low**. Blocking a low-intent search is fine even if it converted once. The dashboard shows the level on every search; the words are in `config/intent.json`.
+
+**Other County project names are negated on purpose.** In each campaign, the names of County's other projects (in a Cocoa campaign: Coco, Ivy, Ivory, Cleo, County 107 and the rest) are negatives, because someone searching *ivy county* wants that project, not the one the campaign sells.
+
 Write **Leave** in the Status column instead of leaving it blank. A blank cell cannot tell "decided to leave" apart from "not reviewed".
 
 ## 7. How to write the negative (the part that goes wrong most)
@@ -75,7 +79,8 @@ What the dashboard checks every day against this rule:
 - **Overview › Done** counts how each blocked junk search is blocked: by its own full term (safe), by part of it, or only by one word. On 22 Nov: 1,512 by the full term, 61 by part, 53 by one word.
 - **Overview › Still to do** shows how the sheet writes its negatives: on 22 Nov, 879 of 1,924 Exclude calls gave a single word and 274 gave none (the 20 and 21 Nov tabs had almost all blank).
 - **Fix list › Junk searches still not blocked** always suggests the full search term as the negative, and says when the sheet wrote one word or nothing.
-- **Fix list › Negatives blocking searches we want** lists every negative in the account that also blocks a search that converted, that the sheet said to Add, or that is our keyword, with the junk searches to negate instead (for example `-prestige` in Ivory Competitor blocks "prestige 150 noida", 5 conversions, and the keyword "prestige sector 150 noida").
+- **Fix list › Negatives blocking searches we want** lists every negative in the account that also blocks a high- or medium-intent search that converted, that the sheet said to Add, or that is our keyword, with the junk searches to negate instead (for example `-house` in Ivory Non-brand blocks the Adds "3 bhk house in noida" and "house for sale in noida"). Negatives that only block low-intent searches (`-prestige`, a group name) and County's other project names are left out on purpose.
+- **Blocked means stopped in the whole campaign**: a negative at campaign level, or in every ad group. An ad-group negative that leaves other ad groups open only steers the search, so the dashboard counts it as "blocked only in some ad groups".
 
 1. **Use the smallest negative that removes the junk.** Prefer the project name as a phrase (`"skyline suites"`) over a single word (`skyline`).
 2. **Never** use a bare number (`-62`, `-24`, `-124`), or a single common property word (home, house, flat, project, society, villa, sector, city, new, greater) as a campaign-wide broad negative.

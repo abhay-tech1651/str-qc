@@ -1,8 +1,20 @@
 import "server-only";
+import fs from "node:fs";
+import path from "node:path";
 import { engineHelpers } from "./engine";
 import { getModel, readInventory, readTable, todayIST } from "./store";
-import { buildLedger, type Ledger, type Outcome, type Search } from "./ledger-core";
+import { buildLedger, type IntentRules, type Ledger, type Outcome, type Search } from "./ledger-core";
 import { getInventory } from "./neg-inventory";
+import { repoRoot } from "./root";
+
+/** config/intent.json: the words that tell how much a search wants one of our homes (edit the file, not the code). */
+function intentRules(): IntentRules | null {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(repoRoot(), "config", "intent.json"), "utf8")) as IntentRules;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The search-term ledger for the pages: every search from the first day of the agency sheet up to a chosen day
@@ -36,9 +48,10 @@ export function getLedger(toParam?: string | null): Ledger | null {
   const to = toParam && ISO.test(toParam) && d.days.includes(toParam) ? toParam : d.default;
   const inv = readInventory();
   const tables = { searchTerms: readTable("search_terms"), calls: readTable("agency_calls"), keywords: readTable("keywords"), changes: readTable("changes") };
-  const key = [d.first, to, inv?.exported_ms ?? inv?.as_of ?? "", inv?.negatives.length ?? 0, ...Object.values(tables).map((t) => t.length)].join("|");
+  const intent = intentRules();
+  const key = [d.first, to, inv?.exported_ms ?? inv?.as_of ?? "", inv?.negatives.length ?? 0, JSON.stringify(intent).length, ...Object.values(tables).map((t) => t.length)].join("|");
   if (cache?.key === key) return cache.out;
-  const out = buildLedger(engineHelpers(), { ...tables, inv, from: d.first, to, grace: getModel().agency?.grace_days ?? 3, projectOf: projectOfFn() });
+  const out = buildLedger(engineHelpers(), { ...tables, inv, intent, from: d.first, to, grace: getModel().agency?.grace_days ?? 3, projectOf: projectOfFn() });
   cache = { key, out };
   return out;
 }
@@ -74,9 +87,9 @@ export const FIX_TYPES: { type: FixType; title: string; who: string; why: string
   { type: "add_open", title: "Adds not done", who: "Agency", why: "The sheet said Add, but the search is not a keyword in that campaign." },
   { type: "add_blocked", title: "Adds blocked by a negative", who: "Agency", why: "The sheet said Add, but a negative in the account blocks this search, so it cannot show even as a keyword." },
   { type: "county_comment", title: "County comments not answered", who: "Agency", why: "County wrote a comment on these searches, but the sheet and the account do not follow it yet: the search was left as it is, or the sheet still says Exclude where County asked to add it or not to exclude it. Answer in the sheet and change the Status." },
-  { type: "neg_blocks_good", title: "Negatives blocking searches we want", who: "Agency", why: "A single word (or a short phrase) in broad or phrase match blocks every search that contains it. Each negative here also blocks searches that brought conversions, that the sheet said to Add, or that are our keywords. Take it out and negate the junk searches it was added for one by one, by their full search term, so nothing we want is caught." },
+  { type: "neg_blocks_good", title: "Negatives blocking searches we want", who: "Agency", why: "A single word (or a short phrase) in broad or phrase match blocks every search that contains it. Each negative here also blocks a high- or medium-intent search (our location with a buying word, or a city with a buying word) that converted, that the sheet said to Add, or that is our keyword. Take it out and negate the junk searches it was added for one by one, by their full search term, so nothing we want is caught. Negatives that only block low-intent searches (another builder's project or group) and County's other project names are left out on purpose." },
   { type: "keyword_blocked", title: "Negatives switching off our keywords", who: "Agency", why: "A campaign-wide negative blocks keywords that are enabled in the same campaign: those keywords cannot show for the searches they were bought for." },
-  { type: "results_blocked", title: "Searches with conversions now blocked", who: "County to decide", why: "These searches brought conversions (Google's count), but a negative now blocks them. Check that this was meant." },
+  { type: "results_blocked", title: "Searches with conversions now blocked", who: "County to decide", why: "These searches brought a conversion (Google's count, not a CRM lead), but a negative now blocks them, and either the sheet never asked to exclude them or they show buying intent. Left out on purpose: the sheet's own Excludes of low-intent searches (another builder's project, done as asked) and County's other project names." },
   { type: "not_reviewed", title: "Searches missing from the sheet", who: "Agency", why: "They cost money in the period but are in no tab of the STR sheet, so nobody has judged them." },
 ];
 
@@ -90,6 +103,7 @@ export function fixList(led: Ledger): FixItem[] {
   // County asked to keep or add it (so it must not be excluded)
   const KEEP = /add|do ?n[o']t exclude|not exclude|why exclude/i;
   const listNote = (s: Search) => (s.lists.length ? `If it is in one of the ${s.lists.length} shared lists on this campaign, say which.` : "");
+  const intentNote = (s: Search) => (s.intent ? `Intent: ${s.intent} (${s.intent_why}).` : "");
   for (const s of led.searches) {
     const ag = s.ad_groups[0] ?? "";
     const blk = s.blockers[0];
@@ -100,7 +114,7 @@ export function fixList(led: Ledger): FixItem[] {
         : s.outcome === "blocked_anyway" ? `The sheet left it as it is, and ${blk ? `-${blk.text}` : "a negative"} blocks it`
         : s.outcome === "discuss" ? "The sheet says Discuss" : "The sheet left it as it is";
       out.push({ type: "county_comment", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
-        todo: `${what}: answer County in the sheet and act on it`, where: "STR sheet, then Google Ads", cost: s.cost, conv: s.conv, since: s.call_day || s.first_day, note: ccNote });
+        todo: `${what}: answer County in the sheet and act on it`, where: "STR sheet, then Google Ads", cost: s.cost, conv: s.conv, since: s.call_day || s.first_day, note: [ccNote, intentNote(s)].filter(Boolean).join(" ") });
       continue;
     }
     if (s.outcome === "junk_open") {
@@ -114,15 +128,15 @@ export function fixList(led: Ledger): FixItem[] {
         cost: s.cost, conv: s.conv, since: s.call_day, note: [partly, listNote(s), ccNote].filter(Boolean).join(" ") });
     } else if (s.outcome === "add_open") {
       out.push({ type: "add_open", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
-        todo: `Add keyword "${s.term}"`, where: kwPath(s.campaign, ag), cost: s.cost, conv: s.conv, since: s.call_day, note: ccNote });
-    } else if (s.outcome === "add_blocked" && blk && !costlyKey.has(`${s.campaign}${blk.ad_group}${blk.text.toLowerCase()}`)) {
+        todo: `Add keyword "${s.term}"`, where: kwPath(s.campaign, ag), cost: s.cost, conv: s.conv, since: s.call_day, note: [intentNote(s), ccNote].filter(Boolean).join(" ") });
+    } else if (s.outcome === "add_blocked" && blk && !blk.county_rule && !costlyKey.has(`${s.campaign}${blk.ad_group}${blk.text.toLowerCase()}`)) {
       out.push({ type: "add_blocked", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
         todo: `Remove or narrow negative ${blk.text} (${blk.level}${blk.ad_group ? ` ${blk.ad_group}` : ""})`, where: negPath(s.campaign, blk.ad_group),
         cost: s.cost, conv: s.conv, since: s.call_day, note: s.is_keyword ? "It is a keyword already, but the negative stops it." : "" });
-    } else if (s.outcome === "results_blocked" && blk) {
+    } else if (s.outcome === "results_blocked" && blk && !blk.county_rule && !(s.verdict === "Exclude" && s.intent === "low")) {
       out.push({ type: "results_blocked", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
         todo: `Check negative ${blk.text} (${blk.level}${blk.ad_group ? ` ${blk.ad_group}` : ""})`, where: negPath(s.campaign, blk.ad_group),
-        cost: s.cost, conv: s.conv, since: s.call_day || s.last_day, note: s.verdict === "Exclude" ? `The sheet said Exclude on ${s.call_day}.` : "The sheet never asked to exclude it." });
+        cost: s.cost, conv: s.conv, since: s.call_day || s.last_day, note: [s.verdict === "Exclude" ? `The sheet said Exclude on ${s.call_day}.` : "The sheet never asked to exclude it.", intentNote(s)].join(" ") });
     } else if (s.outcome === "not_reviewed") {
       out.push({ type: "not_reviewed", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
         todo: "Review it in the sheet: Add, Exclude or leave", where: "STR sheet", cost: s.cost, conv: s.conv, since: s.first_day, note: "" });
@@ -135,8 +149,9 @@ export function fixList(led: Ledger): FixItem[] {
     const key = `${n.campaign}${n.ad_group}${n.text.toLowerCase()}`;
     if (done.has(key)) continue;
     done.add(key);
+    if (n.top_intent === "low") continue; // it only blocks low-intent searches (another builder's project or group): fine
     const a = addedOn.get(key) ?? addedOn.get(`${n.campaign}${n.text.toLowerCase()}`);
-    const goodList = n.good.slice(0, 5).map((g) => `${g.term} (${g.conv > 0 ? `${Math.round(g.conv * 10) / 10} conv` : g.why})`).join(", ") + (n.good.length > 5 ? ` and ${n.good.length - 5} more` : "");
+    const goodList = n.good.slice(0, 5).map((g) => `${g.term} (${g.conv > 0 ? `${Math.round(g.conv * 10) / 10} conv` : g.why}${g.intent ? `, ${g.intent} intent` : ""})`).join(", ") + (n.good.length > 5 ? ` and ${n.good.length - 5} more` : "");
     const swap = n.junk_terms.slice(0, 4).map((t) => `"${t}"`).join(", ") + (n.junk_terms.length > 4 ? ` and ${n.junk_terms.length - 4} more` : "");
     out.push({ type: "neg_blocks_good", id: `neg${key}`, project: n.project, campaign: n.campaign, ad_group: n.ad_group, term: goodList,
       todo: `Remove ${n.text}${n.words === 1 ? " (one word)" : ""}${n.junk ? `; negate instead the ${n.junk} junk search${n.junk === 1 ? "" : "es"} it blocks: ${swap}` : "; it blocks no search the sheet called junk"}`,

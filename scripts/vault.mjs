@@ -34,7 +34,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const BUNDLES = {
-  data: { file: "vault/data.qcvault", roots: ["data/app"] },
+  // data/notes: dated meeting and recheck notes (they quote the agency's search terms and spend, so they stay locked)
+  // data/meeting: the meeting briefs
+  data: { file: "vault/data.qcvault", roots: ["data/app", "data/notes", "data/meeting"] },
   archive: {
     file: "vault/archive.qcvault",
     roots: ["data/fixtures", "data/strqc.sqlite", "data/County_Search_QC_Feed_READY.js", "inbox", "history"],

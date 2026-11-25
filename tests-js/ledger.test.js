@@ -67,6 +67,39 @@ test('buildLedger: one outcome per search, rupees add up, money after the call',
   assert.strictEqual(led.by_week.reduce((s, g) => s + g.cost, 0), 575);
 });
 
+test('buildLedger: buying intent, County\'s other-project rule, and ad-group negatives that only steer', async () => {
+  const { buildLedger } = await core();
+  const intent = JSON.parse(require('fs').readFileSync(path.join(__dirname, '..', 'config', 'intent.json'), 'utf8'));
+  const led = buildLedger(H, {
+    from: '2026-11-01', to: '2026-11-10', grace: 3, projectOf: () => 'ivory', intent,
+    searchTerms: [
+      st('2026-11-02', '3 bhk in noida sector 115', 'Flats', 50),
+      st('2026-11-02', 'noida flat purchase', 'Flats', 50),
+      st('2026-11-02', 'prestige 150 noida', 'Flats', 50, 2),
+      st('2026-11-02', 'cleo county 3 bhk price', 'Flats', 50, 1),
+      st('2026-11-02', 'ivory county price', 'Flats', 50),
+      st('2026-11-02', 'flats on rent noida', 'Flats', 50),
+      st('2026-11-02', 'buy flat noida', 'Apartments', 50),
+      st('2026-11-02', 'luxury flats noida', 'Flats', 10),
+    ],
+    calls: [call('2026-11-02', 'prestige 150 noida', 'Exclude', 'prestige'), call('2026-11-02', 'buy flat noida', 'Add')],
+    keywords: [{ keyword_status: 'Enabled', campaign: C, ad_group: 'Flats', keyword: 'flats in noida' }],
+    changes: [],
+    inv: { as_of: '2026-11-10', name: 'x', lists: [], negatives: [neg('prestige', 'broad'), neg('cleo', 'broad'), neg('flat', 'broad', 'Apartments')] },
+  });
+  const by = Object.fromEntries(led.searches.map((s) => [s.term, s]));
+  assert.strictEqual(by['3 bhk in noida sector 115'].intent, 'high', 'our location and a buying word');
+  assert.strictEqual(by['noida flat purchase'].intent, 'medium', 'a city and a buying word, not our location');
+  assert.strictEqual(by['prestige 150 noida'].intent, 'low', 'another builder\'s group');
+  assert.strictEqual(by['cleo county 3 bhk price'].intent, 'low', 'another County project');
+  assert.strictEqual(by['ivory county price'].intent, 'high', 'our project');
+  assert.strictEqual(by['flats on rent noida'].intent, 'low', 'rent');
+  assert.ok(by['cleo county 3 bhk price'].blockers[0].county_rule, '-cleo is County\'s rule');
+  assert.strictEqual(by['buy flat noida'].blocked, 'partly', '-flat sits only in Apartments; the Flats ad group can still show it');
+  assert.strictEqual(by['buy flat noida'].outcome, 'add_open');
+  assert.deepStrictEqual(led.costly_negatives.map((n) => [n.text, n.top_intent]), [['prestige', 'low']], '-cleo is left out; -prestige only blocks a low-intent search');
+});
+
 test('buildLedger: a keyword added in the change history counts as added', async () => {
   const { buildLedger } = await core();
   const led = buildLedger(H, {

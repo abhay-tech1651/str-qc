@@ -112,7 +112,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
         <Card className="space-y-6 p-5 sm:p-6 lg:col-span-3">
           <div>
             <h2 className="text-base font-semibold">The agency&apos;s scorecard</h2>
-            <p className="mt-1 text-[13px] text-muted-foreground">Every Add and Exclude in the sheet, {dshort(led.from)} to {dshort(led.to)}, checked against the change history and the account as it is on {dshort(A.asOf)}. Deadline: the sheet day plus {led.grace} days. Google&apos;s own CTM campaign is left out ({n0(A.google.length)} calls).</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">Every Add and Exclude in the sheet, {dshort(led.from)} to {dshort(led.to)}, checked against the change history and the account as it is on {dshort(A.asOf)}. Deadline: the sheet day plus {led.grace} days; a deadline on a Saturday or Sunday moves to Monday. Google&apos;s own CTM campaign is left out ({n0(A.google.length)} calls).</p>
           </div>
           <ScoreBar title={<><span>Excludes: {n0(C.ex.n)}</span><span className="text-[12.5px] font-normal text-muted-foreground">{pct(C.ex.on_time, C.ex.due)}% on time</span></>} segs={exSegs(C)} />
           <ScoreBar title={<><span>Adds: {n0(C.add.n)}</span><span className="text-[12.5px] font-normal text-muted-foreground">{pct(addDone, C.add.due)}% added</span></>} segs={addSegs(C)} />

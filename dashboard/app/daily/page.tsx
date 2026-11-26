@@ -65,7 +65,7 @@ export default async function DailyPage({ searchParams }: { searchParams: Promis
                 const sel = tab?.day === t.day;
                 return (
                   <tr key={t.day} className={cn("hover:bg-muted/40", sel && "bg-accent")}>
-                    <td className="whitespace-nowrap px-4 py-2"><Link href={`${q({ tab: t.day })}#calls`} scroll={false} className="font-medium hover:underline">{weekday(t.day)} {dshort(t.day)}</Link><span className="block text-[11.5px] text-muted-foreground">due {dshort(t.due)}</span></td>
+                    <td className="whitespace-nowrap px-4 py-2"><Link href={`${q({ tab: t.day })}#calls`} scroll={false} className="font-medium hover:underline">{weekday(t.day)} {dshort(t.day)}</Link><span className="block text-[11.5px] text-muted-foreground">due {dshort(t.due)}{t.due !== addDay(t.day, led.grace) ? " (weekend)" : ""}</span></td>
                     <td className="tabular px-2 py-2 text-right">{n0(t.ex.n)}</td>
                     <td className="tabular px-2 py-2 text-right text-good">{t.ex.on_time ? n0(t.ex.on_time) : "–"}</td>
                     <td className="tabular px-2 py-2 text-right text-warn">{t.ex.late ? n0(t.ex.late) : "–"}</td>

@@ -93,7 +93,7 @@ export function CaseFile({ id, onClose, label }: { id: string | null; onClose: (
                 {s.intent ? <span className="block">Buying intent: {s.intent} ({s.intent_why}).</span> : null}
               </Step>
               {f ? (
-                <Step icon={<Clock />} tone="muted" title={`Deadline ${dlong(f.due)}`}>{data.grace} days after the sheet day. {f.cost_grace > 0 ? `${inr(f.cost_grace)} spent inside those days.` : "Nothing spent inside those days."}</Step>
+                <Step icon={<Clock />} tone="muted" title={`Deadline ${dlong(f.due)}`}>{data.grace} days after the sheet day{f.due_weekend ? ", moved to Monday because it fell on a weekend" : ""}. {f.cost_grace > 0 ? `${inr(f.cost_grace)} spent inside those days.` : "Nothing spent inside those days."}</Step>
               ) : null}
               {f ? (f.done ? (
                 <Step icon={<CheckCircle2 />} tone={f.status === "late" ? "warn" : f.status === "blocked" ? "bad" : "good"}

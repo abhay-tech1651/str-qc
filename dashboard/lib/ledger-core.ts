@@ -41,6 +41,8 @@ export interface IntentRules {
   buy_words: string[]; city_words: string[]; low_words: string[];
   /** SOP rule 1: our brand words; a search with one in a non-brand or competitor campaign belongs to the brand campaign */
   brand_words?: string[];
+  /** per project: what County does not sell or does not want for that project (Ivory: villas, Greater Noida; Jade: villas) */
+  not_for_us?: Record<string, string[]>;
   /** words that say nothing about which project: any other word (not a number) is a name, usually another builder's */
   generic_words?: string[];
 }
@@ -82,6 +84,8 @@ export interface Search {
   days: number;
   verdict: Verdict;
   call_day: string;
+  /** the agency's deadline for the call (dueDay: sheet day + grace, a weekend deadline moves to Monday); "" without a call */
+  due: string;
   neg_written: string;
   /** what the sheet wrote, against the search */
   neg_written_kind: WrittenKind;
@@ -115,8 +119,20 @@ const addTo = (s: Split, x: Search, cost = x.cost) => {
 };
 
 /** Brand, Non-brand, Competitor or Google's own (CTM) campaign, from the campaign name. */
+/**
+ * The deadline for a sheet call: the sheet day plus the grace days; a deadline that falls on a Saturday or Sunday moves
+ * to Monday (the agency does not work at weekends; owner, 25 Nov 2026).
+ */
+export function dueDay(day: string, grace: number): string {
+  const d = addDay(day, grace);
+  const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
+  return wd === 6 ? addDay(d, 2) : wd === 0 ? addDay(d, 1) : d;
+}
+
 export function campaignKind(c: string): string {
-  if (/ctm/i.test(c)) return "Run by Google (CTM)";
+  // Google's team runs the Ivory CTM campaign; a CTM campaign ROI created (its name starts with ROI) is ROI's (owner, 25 Nov 2026)
+  if (/ctm/i.test(c) && !/^roi/i.test(c)) return "Run by Google (CTM)";
+  if (/ctm/i.test(c)) return "CTM (run by ROI)";
   if (/competitor/i.test(c)) return "Competitor";
   if (/non[_ -]?brand/i.test(c)) return "Non-brand";
   if (/brand/i.test(c)) return "Brand";
@@ -150,6 +166,8 @@ export function buildLedger(H: Helpers, inp: {
     if (!IR) return { intent: "", why: "" };
     const other = has(q, othersFor(project));
     if (other) return { intent: "low", why: `names another County project (${other})` };
+    const notOurs = has(q, toks(ir?.not_for_us?.[project] ?? []));
+    if (notOurs) return { intent: "low", why: `County does not want "${notOurs}" for this project` };
     const low = has(q, IR.low);
     if (low) return { intent: "low", why: `"${low}"` };
     const brand = has(q, IR.brand[project] ?? []);
@@ -277,7 +295,7 @@ export function buildLedger(H: Helpers, inp: {
 
     const exDay = verdict === "Exclude" && firstEx ? str(firstEx.day) : "";
     const cost_after_call = exDay ? rows.filter((r) => str(r.day) > exDay).reduce((s, r) => s + num(r.cost), 0) : 0;
-    const cost_after_deadline = exDay ? rows.filter((r) => str(r.day) > addDay(exDay, grace)).reduce((s, r) => s + num(r.cost), 0) : 0;
+    const cost_after_deadline = exDay ? rows.filter((r) => str(r.day) > dueDay(exDay, grace)).reduce((s, r) => s + num(r.cost), 0) : 0;
 
     let outcome: Outcome;
     if (conv > 0) outcome = blocked === "yes" ? "results_blocked" : "results";
@@ -292,7 +310,7 @@ export function buildLedger(H: Helpers, inp: {
       ad_groups, keywords: [...new Set(rows.map((r) => str(r.keyword)).filter(Boolean))].slice(0, 5),
       match_types: [...new Set(rows.map((r) => str(r.match_type)).filter(Boolean))],
       clicks, cost, conv, first_day: str(rows[0].day), last_day: str(rows[rows.length - 1].day), days: new Set(rows.map((r) => str(r.day))).size,
-      verdict, call_day, neg_written: withNeg ? str(withNeg.neg_term).trim() : "", county_comment: withComment ? str(withComment.county_comment).trim() : "",
+      verdict, call_day, due: call_day ? dueDay(call_day, grace) : "", neg_written: withNeg ? str(withNeg.neg_term).trim() : "", county_comment: withComment ? str(withComment.county_comment).trim() : "",
       neg_written_kind, block_kind, blocked, intent: it.intent, intent_why: it.why, sop_brand: outsideBrand(a.campaign) && !!has(a.q, brandW), blockers, lists: listsOf.get(a.campaign) ?? [], is_keyword, cost_after_call, cost_after_deadline, outcome,
     };
     searches.push(search);

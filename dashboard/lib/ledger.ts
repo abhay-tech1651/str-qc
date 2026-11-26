@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { engineHelpers } from "./engine";
 import { config, getModel, readInventory, readTable, todayIST } from "./store";
-import { buildLedger, type IntentRules, type Ledger, type Outcome, type Search } from "./ledger-core";
+import { buildLedger, dueDay, type IntentRules, type Ledger, type Outcome, type Search } from "./ledger-core";
 import { getInventory } from "./neg-inventory";
 import { buildFollowup, COUNTY_KEEP, whoOf, withListNegatives, type FollowupResult } from "./followup-core";
 import { repoRoot } from "./root";
@@ -103,6 +103,8 @@ export interface FixItem {
   /** for a negative that blocks what we want: the negative itself, and what to do instead */
   neg?: string;
   instead?: string;
+  /** for a negative: its match type and level, in words ("phrase match · campaign level") */
+  neg_how?: string;
 }
 
 const negPath = (campaign: string, adGroup: string) =>
@@ -124,7 +126,6 @@ export const FIX_TYPES: { type: FixType; title: string; who: string; why: string
 export function fixList(led: Ledger): FixItem[] {
   // deadlines are judged on the day the data describes, the same day the follow-through uses
   const today = dataAsOf();
-  const addDays = (d: string, n: number) => (d ? new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10) : "");
   const rows: Omit<FixItem, "due" | "overdue">[] = [];
   const out = { push: (f: Omit<FixItem, "due" | "overdue">) => rows.push(f) };
   // negatives that block searches we want are listed once per negative (below), so an Add they block is not listed again
@@ -188,7 +189,7 @@ export function fixList(led: Ledger): FixItem[] {
     out.push({ type: "neg_blocks_good", id: `neg${key}`, project: n.project, campaign: n.campaign, ad_group: n.ad_group, term: goodList,
       todo: `Remove ${n.text}${n.words === 1 ? " (one word)" : ""}${n.junk ? `; negate instead the ${n.junk} junk search${n.junk === 1 ? "" : "es"} it blocks: ${swap}` : "; it blocks no search the sheet called junk"}`,
       where: negPath(n.campaign, n.ad_group), cost: n.good_cost, conv: n.good_conv, since: a?.day ?? "", note: a ? `Added by ${a.by}.` : "",
-      neg: n.text + (n.list ? ` (shared list ${n.list})` : ""), instead: n.junk ? `Negate the ${n.junk} junk search${n.junk === 1 ? "" : "es"} it blocks by their full search: ${swap}` : "It blocks no search the sheet called junk: remove it" });
+      neg: n.text + (n.list ? ` (shared list ${n.list})` : ""), neg_how: `${n.match} match · ${n.list ? `shared list ${n.list}` : n.ad_group ? `ad group ${n.ad_group}` : "campaign level"}`, instead: n.junk ? `Negate the ${n.junk} junk search${n.junk === 1 ? "" : "es"} it blocks by their full search: ${swap}` : "It blocks no search the sheet called junk: remove it" });
   }
   // negatives that switch off our own enabled keywords (campaign level), from the full negative list
   const inv = readInventory() ? getInventory() : null;
@@ -201,12 +202,12 @@ export function fixList(led: Ledger): FixItem[] {
     out.push({ type: "keyword_blocked", id: `kw\u0001${r.campaign}\u0001${r.text}`, project: r.project, campaign: r.campaign, ad_group: "", term: r.keywords.slice(0, 6).join(", ") + (r.keywords.length > 6 ? ` and ${r.keywords.length - 6} more` : ""),
       todo: `Remove or narrow negative ${r.text} (blocks ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"})`, where: negPath(r.campaign, ""),
       cost: 0, conv: r.conv, since: r.added_on, note: r.added_by ? `Added by ${whoOf(r.added_by).who} (${whoOf(r.added_by).org}).` : "",
-      neg: r.text, instead: `Remove it, or negate only the junk searches by their full search, so the ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"} can show again` });
+      neg: r.text, neg_how: `${r.match} match · campaign level`, instead: `Remove it, or negate only the junk searches by their full search, so the ${r.keywords.length} keyword${r.keywords.length === 1 ? "" : "s"} can show again` });
   }
   // deadlines: a sheet call is due grace days after its tab; problems already in the account have no sheet deadline
   const SHEET: FixType[] = ["junk_open", "add_open", "add_blocked", "county_comment", "not_reviewed"];
   return rows.map((f) => {
-    const due = SHEET.includes(f.type) ? addDays(f.since, led.grace) : "";
+    const due = SHEET.includes(f.type) && f.since ? dueDay(f.since, led.grace) : "";
     return { ...f, due, overdue: !!due && today > due };
   });
 }

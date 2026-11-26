@@ -16,7 +16,7 @@ export function NegHurtTable({ rows: negs, labels }: { rows: FixItem[]; labels: 
                 const by = /^Added by (.+)\.$/.exec(f.note)?.[1] ?? "";
                 return (
                   <tr key={f.id}>
-                    <td className="px-4 py-2.5"><span className="font-mono text-[12.5px] font-medium">{f.neg ?? f.todo}</span><span className="mt-0.5 block text-[12px] capitalize" style={{ color: pcolor(f.project) }}>{f.project}</span></td>
+                    <td className="px-4 py-2.5"><span className="font-mono text-[12.5px] font-medium">{f.neg ?? f.todo}</span>{f.neg_how ? <span className="block text-[12px] font-medium">{f.neg_how}</span> : null}<span className="mt-0.5 block text-[12px] capitalize" style={{ color: pcolor(f.project) }}>{f.project}</span></td>
                     <td className="px-3 py-2.5 text-[12.5px]">{lab(f.campaign)}<span className="block text-muted-foreground">{f.ad_group ? `ad group ${f.ad_group}` : "campaign level"}</span></td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12.5px]">{f.since ? dshort(f.since) : <span className="text-muted-foreground">before 1 Oct</span>}<span className="block text-muted-foreground">{by}</span></td>
                     <td className="max-w-[340px] px-3 py-2.5 text-[12.5px]">{f.term}{f.type === "keyword_blocked" ? <span className="block text-muted-foreground">(our enabled keywords)</span> : null}</td>

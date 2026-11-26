@@ -87,7 +87,10 @@ export interface Done {
 export interface Followup {
   id: string; type: "exclude" | "add"; owner: "agency" | "google";
   project: string; campaign: string; ad_groups: string[]; term: string;
-  call_day: string; due: string; status: ExStatus | AddStatus;
+  call_day: string; due: string;
+  /** the deadline fell on a weekend and moved to Monday */
+  due_weekend: boolean;
+  status: ExStatus | AddStatus;
   done: Done | null;
   /** days past the due day: when it went in (late), or up to today (still open) */
   days_late: number;
@@ -251,7 +254,7 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
     if (s.verdict !== "Exclude" && s.verdict !== "Add") continue;
     const q = H.tok(s.term);
     const type = s.verdict === "Exclude" ? "exclude" : "add";
-    const due = addDay(s.call_day, led.grace);
+    const due = s.due;
     let status: Followup["status"];
     let done: Done | null = null;
     let elsewhere = "";
@@ -301,7 +304,7 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
     out.push({
       id: k, type, owner: s.kind === "Run by Google (CTM)" ? "google" : "agency",
       project: s.project, campaign: s.campaign, ad_groups: s.ad_groups, term: s.term,
-      call_day: s.call_day, due, status, done, days_late: Math.max(0, daysLate),
+      call_day: s.call_day, due, due_weekend: due !== addDay(s.call_day, led.grace), status, done, days_late: Math.max(0, daysLate),
       cost_before: spend(k, (d) => d <= s.call_day), cost_grace: spend(k, (d) => d > s.call_day && d <= due), cost_late,
       cost_after_done: type === "exclude" && doneDay ? spend(k, (d) => d > doneDay) : 0,
       conv: s.conv, intent: s.intent, intent_why: s.intent_why, written: s.neg_written, written_kind: s.neg_written_kind,

@@ -36,6 +36,25 @@
     "jade"
   ],
   "brand_words_about": "SOP rule 1 (docs/SOP.md section 6): a search with one of these words in a non-brand or competitor campaign belongs to the brand campaign, so a negative of these words there is correct, and such a search being blocked there is not a loss.",
+  "not_for_us": {
+    "ivory": [
+      "villa",
+      "villas",
+      "penthouse",
+      "penthouses",
+      "pent house",
+      "greater noida",
+      "greater noida west",
+      "noida extension",
+      "pari chowk",
+      "parichowk"
+    ],
+    "jade": [
+      "villa",
+      "villas"
+    ]
+  },
+  "not_for_us_about": "County's decisions (owner, 25 Nov 2026): Ivory sells no villas or penthouses, and County and the manager do not want Greater Noida (Pari Chowk side) searches for Ivory; Jade (Ghaziabad, from Rs 2.71 Cr) has no villa market, so -villa there stays. A search with one of these words for that project is low intent, so a negative that blocks it is not flagged.",
   "our_places": {
     "ivory": [
       "sector 115",

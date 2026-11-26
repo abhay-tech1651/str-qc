@@ -124,3 +124,11 @@ test('whoOf: name before @ and the organisation, never the full address', async 
   assert.strictEqual(whoOf('bhavikcounty@example.com').org, 'County');
   assert.strictEqual(whoOf('Recommendations Auto-Apply').org, 'Google');
 });
+
+test('dueDay: 3 days, and a deadline on a Saturday or Sunday moves to Monday', async () => {
+  const { dueDay } = await lib('ledger-core.ts');
+  assert.strictEqual(dueDay('2026-11-17', 3), '2026-11-20', 'Tue tab: due Fri');
+  assert.strictEqual(dueDay('2026-11-18', 3), '2026-11-23', 'Wed tab: Sat moves to Mon');
+  assert.strictEqual(dueDay('2026-11-19', 3), '2026-11-23', 'Thu tab: Sun moves to Mon');
+  assert.strictEqual(dueDay('2026-11-20', 3), '2026-11-23', 'Fri tab: due Mon');
+});

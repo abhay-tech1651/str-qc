@@ -2,38 +2,27 @@
 
 Do these in order. Each step is short. You do not need to open the home chat again: everything that chat decided is written in `CLAUDE.md` (section "One engine for every agency number") and in the locked notes (`data/notes/2026-11-25-dashboard-rebuild.md`), which the office Claude reads.
 
-**Before you start, the fastest route (2 minutes, optional):** the home chat could not push to GitHub because the Claude GitHub app is not allowed on the office GitHub account. This is a website setting, not software on the laptop. In any browser: sign in to github.com as the **office** account, open https://github.com/apps/claude/installations/select_target, choose the office account, allow the `str-qc` repository, save. After that, any Claude session can push to it. If you do this, you can skip Part A's file and simply tell the office Claude to `git pull` the branch `claude/elegant-ptolemy-7yc67j` once the home session has pushed it.
+You need only the ZIP file and this guide. (Why a file and not GitHub: the home chat could not push to GitHub, because the Claude GitHub app is not allowed on the office GitHub account. Part I says how to allow it; it is optional.)
 
-## Part A. Bring the update to the office laptop (10 minutes, once)
+## Part A. Put the new version on the office laptop (5 minutes, once)
 
-The update was made on the home laptop. It could not go to GitHub from there, so it travels as one file:
-**`str-qc-rebuild-26nov.bundle`** (about 1 MB). It holds the new code and the locked data (still encrypted).
+You need one file: **`str-qc-office-26nov.zip`**. It is the whole project folder, ready to start: the new code, the full history, and your data still locked (it opens only with your passphrase). No git commands needed.
 
-1. On your phone, open the WhatsApp message where you saved the file. Download it on the office laptop.
-2. Put it in your **Downloads** folder. Do not rename it.
-3. Close the dashboard if it is open (close the black window).
-4. Open **Claude** on the office laptop, in the `str-qc` project (`C:\Users\HP\Documents\str-qc`).
-5. Copy this message and send it to Claude, exactly:
+1. Close the dashboard if it is open (close its black window).
+2. Open `C:\Users\HP\Documents` (or wherever your `str-qc` folder is; then use that place below). Rename the folder **`str-qc`** to **`str-qc-old`**. It keeps everything you had; delete it only when the new one works.
+3. Put the ZIP in `C:\Users\HP\Documents`. Right-click it › **Extract All**. In the box, change the path to exactly `C:\Users\HP\Documents` and press **Extract**.
+4. You now have `C:\Users\HP\Documents\str-qc` again, with the new version inside.
 
-> In this repo, apply the git bundle `Downloads\str-qc-rebuild-26nov.bundle`. It holds branch `claude/elegant-ptolemy-7yc67j`, built on commit 3625f33 ("Save dashboard data, 25 Nov 2026, 19:02 IST"). Fetch it into a local branch `office-update`, merge it into `main`, run `npm test`, then push `main` to GitHub. If `vault/data.qcvault` conflicts, stop and ask me before choosing. Do not use `git add -A`. Then read `CLAUDE.md` section "One engine for every agency number" and `docs/MORNING_GUIDE.md`.
+If you imported reports on the office laptop after 25 Nov, 7 pm: import them again in Part B (Import new reports from Downloads reads the last 21 days).
 
-6. Wait until Claude says the push is done and the tests pass (117 checks).
-
-If you prefer to do it yourself: open Command Prompt in the `str-qc` folder and run these three lines, one at a time:
-
-```
-git fetch "%USERPROFILE%\Downloads\str-qc-rebuild-26nov.bundle" claude/elegant-ptolemy-7yc67j:office-update
-git merge office-update
-git push
-```
-
-If the second line says **conflict**, stop and ask Claude. It only happens if you saved data on the office laptop after 25 Nov, 7:02 pm.
+**Other way (keep your current folder):** the file `str-qc-rebuild-26nov.bundle` holds the same changes. Put it in Downloads and ask Claude on the office laptop: "Apply the git bundle `Downloads\str-qc-rebuild-26nov.bundle` (branch `claude/elegant-ptolemy-7yc67j`, built on commit 3625f33) to main in this repo, run `npm test`, then push main." Use one way, not both.
 
 ## Part B. Open the dashboard (2 minutes)
 
-1. Double-click **Start Search QC.cmd**.
-2. Type the data passphrase when it asks. It unlocks the new notes too.
-3. The first start after an update builds the app: about 3 minutes. The browser opens http://127.0.0.1:3000.
+1. In the new `str-qc` folder, double-click **Start Search QC.cmd**.
+2. Type the data passphrase when it asks. It unlocks the data and the new notes.
+3. The first start installs and builds the app: about 3 to 5 minutes (it needs the internet). The browser opens http://127.0.0.1:3000.
+4. Put the new version on GitHub: double-click **Save data to GitHub.cmd** and type the passphrase. It sends the new code and data to GitHub. If it says it could not push, ask Claude on the office laptop: "merge origin/main into main and push".
 
 ## Part C. What you will see (the menu, top to bottom)
 
@@ -91,7 +80,7 @@ Tick each line. If one fails, tell the office Claude which line failed.
 
 ## Part H. Keep building with Claude on the office laptop
 
-Claude on the office laptop starts with no memory of the home chat. Paste this as your first message there, after Part A:
+Claude on the office laptop starts with no memory of the home chat. In Claude on the office laptop, open the project folder `C:\Users\HP\Documents\str-qc`. Paste this as your first message there, after Part B:
 
 > Read `CLAUDE.md` first, especially "One engine for every agency number (rebuild of 25 Nov 2026)", then `docs/HANDOVER.md` and `docs/MORNING_GUIDE.md`. After I unlock the data, read `data/notes/2026-11-25-dashboard-rebuild.md` and `data/notes/log/2026-11-25-evening.md`. The agency numbers all come from `dashboard/lib/audit.ts` and `dashboard/lib/followup-core.ts`; keep every page on that one engine, change a rule in one place, add a test in `tests-js/followup.test.js` or `tests-js/ledger.test.js`, and run `npm test` before every commit. My rules from 25 Nov: deadline = sheet day + 3 days, a weekend deadline moves to Monday; the Cocoa CTM campaign is ROI's; Jade villa and Ivory Greater Noida searches are low intent (`config/intent.json`, `not_for_us`); judge searches by the signals in the query (our project, our sector, configuration, price), not by one conversion. Next I want: [write what you want next].
 

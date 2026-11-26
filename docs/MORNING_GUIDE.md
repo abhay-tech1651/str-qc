@@ -2,27 +2,28 @@
 
 Do these in order. Each step is short. You do not need to open the home chat again: everything that chat decided is written in `CLAUDE.md` (section "One engine for every agency number") and in the locked notes (`data/notes/2026-11-25-dashboard-rebuild.md`), which the office Claude reads.
 
-You need only the ZIP file and this guide. (Why a file and not GitHub: the home chat could not push to GitHub, because the Claude GitHub app is not allowed on the office GitHub account. Part I says how to allow it; it is optional.)
+The new version is on GitHub (`main`, 26 Nov), so the Start file brings it in by itself. The ZIP is only a spare way, in case the Start file cannot update.
 
-## Part A. Put the new version on the office laptop (5 minutes, once)
-
-You need one file: **`str-qc-office-26nov.zip`**. It is the whole project folder, ready to start: the new code, the full history, and your data still locked (it opens only with your passphrase). No git commands needed.
+## Part A. Get the new version on the office laptop (2 minutes, once)
 
 1. Close the dashboard if it is open (close its black window).
-2. Open `C:\Users\HP\Documents` (or wherever your `str-qc` folder is; then use that place below). Rename the folder **`str-qc`** to **`str-qc-old`**. It keeps everything you had; delete it only when the new one works.
-3. Put the ZIP in `C:\Users\HP\Documents`. Right-click it › **Extract All**. In the box, change the path to exactly `C:\Users\HP\Documents` and press **Extract**.
-4. You now have `C:\Users\HP\Documents\str-qc` again, with the new version inside.
+2. In your `str-qc` folder, double-click **Start Search QC.cmd**.
+3. The black window says **"Got the latest code and data from GitHub."** Then it asks for the passphrase (the locked data and notes changed too). Type it.
+4. Go on with Part B, step 3.
 
-If you imported reports on the office laptop after 25 Nov, 7 pm: import them again in Part B (Import new reports from Downloads reads the last 21 days).
+If the window says **"Not updated: this computer has its own unsaved changes"**, or **"Keeping this computer's data"**, stop and ask Claude on the office laptop: "Bring this folder up to date with GitHub main without losing anything on this computer, then open the locked notes." Or use the spare way below.
 
-**Other way (keep your current folder):** the file `str-qc-rebuild-26nov.bundle` holds the same changes. Put it in Downloads and ask Claude on the office laptop: "Apply the git bundle `Downloads\str-qc-rebuild-26nov.bundle` (branch `claude/elegant-ptolemy-7yc67j`, built on commit 3625f33) to main in this repo, run `npm test`, then push main." Use one way, not both.
+**Spare way (only if the Start file cannot update):** `str-qc-office-26nov.zip` is the whole project folder, ready to start.
+1. In `C:\Users\HP\Documents` (or wherever your `str-qc` folder is), rename `str-qc` to `str-qc-old`. Delete it only when the new one works.
+2. Put the ZIP there. Right-click › **Extract All** › change the path to exactly that folder › **Extract**. You get a new `str-qc` folder.
+3. In it, double-click **Start Search QC.cmd** and type the passphrase. The ZIP misses only this morning's small hand-over note on GitHub; double-clicking **Save data to GitHub.cmd** afterwards brings both together (if it says it could not push, ask Claude there: "merge origin/main into main and push").
 
 ## Part B. Open the dashboard (2 minutes)
 
-1. In the new `str-qc` folder, double-click **Start Search QC.cmd**.
+1. Double-click **Start Search QC.cmd** in your `str-qc` folder (if Part A did not already).
 2. Type the data passphrase when it asks. It unlocks the data and the new notes.
-3. The first start installs and builds the app: about 3 to 5 minutes (it needs the internet). The browser opens http://127.0.0.1:3000.
-4. Put the new version on GitHub: double-click **Save data to GitHub.cmd** and type the passphrase. It sends the new code and data to GitHub. If it says it could not push, ask Claude on the office laptop: "merge origin/main into main and push".
+3. After an update the app is installed and built again: about 3 to 5 minutes (it needs the internet). The browser opens http://127.0.0.1:3000.
+4. At the end of the day, as always: double-click **Save data to GitHub.cmd** and type the passphrase.
 
 ## Part C. What you will see (the menu, top to bottom)
 

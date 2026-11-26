@@ -39,7 +39,8 @@ Written 12 Nov 2026, brought up to date 14 Nov and 25 Nov 2026, so that the work
 5. Google Ads Script feed (`ads-script/`, `docs/ADS_SCRIPT_SETUP.md`) is optional and unused; the Google Sheet version is shelved. Decide whether to delete the sheet and the Apps Script project.
 6. PDFs: the owner once mentioned uploading reports as PDFs; only CSV and the agency .xlsx are read.
 7. The agency sheet is shared by link (anyone with the link can read it). Suggest restricting it to named accounts; the dashboard then needs the owner to download the .xlsx and drop it on the Import page.
-8. Known gaps: changes to shared negative lists and Google Ads Editor edits are not in the change history export, so follow-through for those cannot be confirmed.
+8. Known gaps: the words inside the shared negative lists are in no export (the Negative keyword report only names the list a campaign uses), so a search counted as "not blocked" may still be blocked by a shared list. Words added to a shared list do show in the change history (25 Nov: "Competitors List: 4 negative broad match keyword added to list"), with an empty Campaign column.
+   Google Ads Editor (25 Nov finding): its account copy is a SQLite file, `%LOCALAPPDATA%\Google\Google-AdWords-Editor\759\ape_9641857377.db`; copy it before reading. `parentId >> 32` is 2 for a campaign and 4 for an ad group (low 32 bits = localId); `criterionType` 0 broad, 1 phrase, 2 exact; `status` 0 enabled. It holds campaign and ad-group negatives, keywords, and which shared lists each campaign uses (`NegativeKeywordListEdge`), but not the words inside the lists. It is only as fresh as the owner's last "Get recent changes" (the 23 Nov copy was 4:59 pm). The owner could not find that button, and Claude sessions have no desktop control, so the web exports from Downloads remain the source.
 9. Keep the guides (`docs/SOP.md`, handbook) in step with the dashboard's page names.
 
 ## Working on two computers

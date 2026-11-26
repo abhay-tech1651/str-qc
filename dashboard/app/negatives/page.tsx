@@ -92,7 +92,7 @@ export default async function NegativesPage({ searchParams }: { searchParams: Pr
               <tr className="bg-muted/30 font-medium"><td className="px-4 py-2">All Excludes</td>{cols.map((c) => <td key={c.key} className={cn("tabular px-2 py-2 text-right", c.tone)}>{n0(ex.filter(c.pick).length)}</td>)}<td className="tabular px-4 py-2 text-right">{n0(ex.length)}</td></tr>
             </tbody>
           </table>
-          <Explain><span className="px-4">Read across: of the Excludes where the sheet wrote one word, how many are blocked by their full search today, by a single word, or not at all.</span></Explain>
+          <div className="px-4 pb-4"><Explain>Read across: of the Excludes where the sheet wrote one word, how many are blocked by their full search today, by a single word, or not at all.</Explain></div>
         </Card>
         <Card className="space-y-6 p-5 lg:col-span-2">
           <ScoreBar title="Where the blocked Excludes are blocked" segs={[

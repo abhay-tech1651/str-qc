@@ -100,6 +100,20 @@ export default async function HelpPage() {
         </div>
       </Section>
 
+      <Section title="Your 15 minutes a day" description="The same order every morning.">
+        <Card className="p-5">
+          <ol className="list-decimal space-y-2 pl-5 text-[14px] leading-relaxed">
+            <li>In Google Ads, download yesterday&apos;s <b>Search terms</b> report (all campaigns), the last 7 days of <b>Change history</b>, and the <b>Negative keyword report</b> (whole account). Once a week also the <b>Search keywords</b> report and the <b>Campaign report by day</b>.</li>
+            <li><b>Data</b> › Import new reports from Downloads, then Refresh the agency sheet.</li>
+            <li><b>Day by day</b>: did the newest tabs go in, and when? A weekday in red with “No change” is a question for the agency.</li>
+            <li><b>Overview</b> › What to raise, top to bottom. Click any line, then any row: the panel shows the search&apos;s whole story with the change history time and person.</li>
+            <li><b>Fix list</b> › tick “Only past the deadline” › CSV, and send it to the agency.</li>
+            <li><b>Negatives</b>: new one-word negatives, and negatives that stop searches we want (with their match type and level).</li>
+            <li>Before a meeting: <b>Agency report</b> › printer icon › save as PDF. At the end of the day: Save data to GitHub.</li>
+          </ol>
+        </Card>
+      </Section>
+
       <Section title="The words used" description="The same word means the same thing on every page.">
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -112,13 +126,29 @@ export default async function HelpPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Agency calls and what happened to them" description="From the agency's STR sheet, checked against the Google Ads change history." />
+            <CardHeader title="Each sheet call, and what happened to it" description="From the agency's STR sheet, checked against the Google Ads change history and the account today. Same words on Overview, Agency report, Day by day and the Fix list." />
             <div className="divide-y px-5 pb-5 pt-4">
-              <Term name="Exclude call">The sheet marks a search as junk: it should be blocked with a negative keyword. An <b className="font-medium text-foreground">Add call</b> marks a good search that should become a keyword.</Term>
-              <Term name="Applied" badge={<Badge tone="good">Applied</Badge>}>A negative that blocks the search appears in the change history, from the day before the sheet day onwards. Blocked in the same campaign but a different ad group also counts.</Term>
-              <Term name="Never applied" badge={<Badge tone="bad">Never applied</Badge>}>More than {graceText} have passed between the sheet day and the latest change history loaded, and nothing blocks the search. It can keep costing money.</Term>
-              <Term name="Waiting" badge={<Badge tone="info">Waiting</Badge>}>No more than {graceText} have passed between the sheet day and the latest change history loaded. The agency still has time, so it is not counted against them yet.</Term>
-              <Term name="Not checked" badge={<Badge tone="muted">Not checked</Badge>}>The change history loaded here does not reach back to that sheet day, so the call cannot be judged. Import an older change history to check it.</Term>
+              <Term name="Exclude and Add">The sheet marks a search as junk (<b className="font-medium text-foreground">Exclude</b>: block it with a negative keyword) or as a search we want (<b className="font-medium text-foreground">Add</b>: make it a keyword in that campaign).</Term>
+              <Term name="Deadline">The sheet day plus {graceText}. A deadline that falls on a Saturday or Sunday moves to Monday (the agency does not work at weekends), and is marked “weekend”.</Term>
+              <Term name="Done on time" badge={<Badge tone="good">Done on time</Badge>}>The change history shows the negative (or keyword) going in on or before the deadline, with the time and the person.</Term>
+              <Term name="Done late" badge={<Badge tone="warn">Done late</Badge>}>It went in after the deadline. “₹ after deadline” is what the search cost on the days after the deadline, up to the day it went in.</Term>
+              <Term name="Not done" badge={<Badge tone="bad">Not done</Badge>}>Past the deadline, and nothing in the account blocks it (or it is not a keyword anywhere, for an Add).</Term>
+              <Term name="Wrong place" badge={<Badge tone="bad">Wrong place</Badge>}>A negative went in, but only in another ad group of the campaign, so the search still runs where it ran. For an Add: it became a keyword only in another campaign.</Term>
+              <Term name="Not due yet" badge={<Badge tone="muted">Not due yet</Badge>}>Still inside the agency&apos;s days. Never counted against them, whatever else is known.</Term>
+              <Term name="Set apart" badge={<Badge tone="info">County&apos;s rule</Badge>}>Counted neither as done nor as missed: a brand search in a non-brand campaign (it belongs to the brand campaign, SOP rule 1), another County project&apos;s name (negated on purpose), a search County asked to keep (the agency answers County first), and Google&apos;s own CTM campaign (Google&apos;s team runs it).</Term>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Negatives, in plain words" description="How Google Ads reads a negative keyword (Google Ads Help), with County examples." />
+            <div className="divide-y px-5 pb-5 pt-4">
+              <Term name="Broad">-ats pristine blocks every search that has both words, in any order: “ats pristine noida”, “pristine ats price”.</Term>
+              <Term name="Phrase">-&quot;new launch&quot; blocks every search with those words together, in that order: “new launch projects in noida”, but also “ivory county new launch”.</Term>
+              <Term name="Exact">-[sports city sector 150] blocks only that search, nothing else. This is the full search, County&apos;s rule.</Term>
+              <Term name="One word">A single word in broad or phrase match (-house, -location) blocks every search with that word, including ones we want: “3 bhk house in noida”, “ivory county location”. The Negatives page lists every one-word negative and what it stops.</Term>
+              <Term name="No plurals">Negatives do not stretch to close variants: -flat does not stop “flats”. The junk comes back in a new spelling; the full search in exact match is the clean way.</Term>
+              <Term name="Level">Campaign level and shared lists stop the search in the whole campaign. An ad-group negative stops it only in that ad group; the search can still run in another ad group of the same campaign.</Term>
+              <Term name="Buying intent">High: our project, or our sector with a buying word (“3 bhk in sector 115”). Medium: our sector, or a city with a buying word. Low: another builder&apos;s project, another County project, rent, budget, villa for Jade, Greater Noida for Ivory. A negative is flagged only when it stops a high- or medium-intent search. The words live in config/intent.json.</Term>
             </div>
           </Card>
 

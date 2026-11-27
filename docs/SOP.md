@@ -67,6 +67,13 @@ Ask the questions in order; stop at the first answer.
 
 **Judge by buying intent, not by whether a search converted once (owner, 23 Nov 2026).** A search that names our project, or our location with a buying word (*3 bhk in noida sector 115*), is **high**; our location alone, or a city with a buying word (*noida flat purchase*), is **medium**; another builder's project or group (*prestige 150 noida*), another County project, rent, budget or research words are **low**. Blocking a low-intent search is fine even if it converted once. The dashboard shows the level on every search; the words are in `config/intent.json`. **Location searches are low intent** (owner, 25 Nov 2026), even with our project name (*ivory county sector 115 noida location*): that person opens Google Maps, not the ad. Exclude them by the full search, not the word `location`, and do not keep a keyword that asks for them.
 
+**County's decisions of 27 Nov 2026 (owner):**
+- **Clove does not want Noida Extension searches.** `-extension` in Clove Non-brand is right. Clove's own Noida Extension keywords (*4 bhk flats in noida extension*) should be paused, not kept.
+- **Villa searches are fine for Clove.** Clove starts at Rs 8 Cr, so a villa buyer can fit. Ivory and Jade still do not want villas.
+- **County Spaces is County's commercial project, and County runs no ads for it.** `-spaces` and the paused keyword *county spaces* are right.
+- **County Group brand searches (*county group*, *county group noida*, *countygroup*) need neither an Add nor an Exclude.** They are brand searches, and pausing those keywords in Clove Brand is accepted.
+- **The /campaign/ landing pages in the new ads are approved.**
+
 **Other County project names are negated on purpose.** In each campaign, the names of County's other projects (in a Cocoa campaign: Coco, Ivy, Ivory, Cleo, County 107 and the rest) are negatives, because someone searching *ivy county* wants that project, not the one the campaign sells.
 
 Write **Leave** in the Status column instead of leaving it blank. A blank cell cannot tell "decided to leave" apart from "not reviewed".

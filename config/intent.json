@@ -1,5 +1,5 @@
 {
-  "about": "How much a search tells us the person wants to buy one of OUR homes. Edit the words here, not the code (dashboard/lib/ledger-core.ts intentOf). A phrase matches whole words. Rules, first that fits: 1) names another County project in a campaign for a different project (County's rule, 22 Nov 2026: negate the other project names) -> low; 2) a low word -> low; 3) names this project (brand) -> high; 4) this project's location plus a buying word -> high; 5) this project's location alone -> medium; 6) a name word (a word in none of the lists below, not a number: usually another builder's project or group, like prestige or enigma) -> low; 7) a city or area plus a buying word -> medium; 8) anything else (a bare city, research) -> low. Location words (location, directions, route): low, even with our project name, because that person is going to Google Maps, not the ad (owner, 25 Nov 2026). Rule 6 runs after 4 and 5, so another builder's name next to our location is still high or medium.",
+  "about": "How much a search tells us the person wants to buy one of OUR homes. Edit the words here, not the code (dashboard/lib/ledger-core.ts intentOf). A phrase matches whole words. Rules, first that fits: 1) names another County project in a campaign for a different project (County's rule, 22 Nov 2026: negate the other project names) -> low; 2) a low word -> low; 3) names this project (brand) -> high; 4) this project's location plus a buying word -> high; 5) this project's location alone -> medium; 6) a name word (a word in none of the lists below, not a number: usually another builder's project or group, like prestige or enigma) -> low; 7) a city or area plus a buying word -> medium; 8) anything else (a bare city, research) -> low. Location words (location, directions, route): low, even with our project name, because that person is going to Google Maps, not the ad (owner, 25 Nov 2026). County Spaces is County's commercial project and runs no ads, so a search for it is low intent (owner, 27 Nov 2026). Rule 6 runs after 4 and 5, so another builder's name next to our location is still high or medium.",
   "brand": {
     "ivory": [
       "ivory",
@@ -52,9 +52,13 @@
     "jade": [
       "villa",
       "villas"
+    ],
+    "clove": [
+      "noida extension",
+      "extension"
     ]
   },
-  "not_for_us_about": "County's decisions (owner, 25 Nov 2026): Ivory sells no villas or penthouses, and County and the manager do not want Greater Noida (Pari Chowk side) searches for Ivory; Jade (Ghaziabad, from Rs 2.71 Cr) has no villa market, so -villa there stays. A search with one of these words for that project is low intent, so a negative that blocks it is not flagged.",
+  "not_for_us_about": "County's decisions (owner, 25 Nov 2026): Ivory sells no villas or penthouses, and County and the manager do not want Greater Noida (Pari Chowk side) searches for Ivory; Jade (Ghaziabad, from Rs 2.71 Cr) has no villa market, so -villa there stays. A search with one of these words for that project is low intent, so a negative that blocks it is not flagged. Clove (Sector 151, from Rs 8 Cr) does not want Noida Extension searches, so -extension in Clove Non-brand is right and its Noida Extension keywords should be paused; villa searches are fine for Clove (owner, 27 Nov 2026).",
   "our_places": {
     "ivory": [
       "sector 115",
@@ -318,6 +322,7 @@
     "office",
     "shop",
     "commercial",
+    "county spaces",
     "plot",
     "plots",
     "land",

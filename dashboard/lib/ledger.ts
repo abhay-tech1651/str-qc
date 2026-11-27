@@ -2,14 +2,14 @@ import "server-only";
 import fs from "node:fs";
 import path from "node:path";
 import { engineHelpers } from "./engine";
-import { config, getModel, readInventory, readTable, todayIST } from "./store";
+import { config, dataVersion, getModel, memo, readInventory, readTable, todayIST } from "./store";
 import { buildLedger, dueDay, type IntentRules, type Ledger, type Outcome, type Search } from "./ledger-core";
 import { getInventory } from "./neg-inventory";
-import { buildFollowup, COUNTY_KEEP, whoOf, withListNegatives, type FollowupResult } from "./followup-core";
+import { bestGroups, buildFollowup, COUNTY_KEEP, whoOf, withListNegatives, type FollowupResult } from "./followup-core";
 import { repoRoot } from "./root";
 
 /** config/intent.json: the words that tell how much a search wants one of our homes (edit the file, not the code). */
-function intentRules(): IntentRules | null {
+export function intentRules(): IntentRules | null {
   try {
     return JSON.parse(fs.readFileSync(path.join(repoRoot(), "config", "intent.json"), "utf8")) as IntentRules;
   } catch {
@@ -24,10 +24,11 @@ function intentRules(): IntentRules | null {
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
-let cache: { key: string; out: Ledger } | null = null;
-
 /** Sheet days that also have Google's search terms, and the default "checked up to" day: the newest of them. */
 export function ledgerDays() {
+  return memo("ledgerDays", dataVersion(), ledgerDaysNow);
+}
+function ledgerDaysNow() {
   const calls = readTable("agency_calls");
   const days = [...new Set(calls.map((c) => String(c.day ?? "")).filter((d) => ISO.test(d)))].sort();
   const stDays = readTable("search_terms").map((r) => String(r.day ?? "")).filter((d) => ISO.test(d)).sort();
@@ -43,18 +44,28 @@ export function projectOfFn() {
   return (c: string) => proj.get(c) ?? (/ivory/i.test(c) ? "ivory" : /clove/i.test(c) ? "clove" : /cocoa/i.test(c) ? "cocoa" : /jade/i.test(c) ? "jade" : "other");
 }
 
+/** The negative keyword report plus the shared-list words seen going in through the change history (they count as
+ *  campaign-level negatives of every campaign using the list). Built once per data change. */
+function invWithLists() {
+  return memo("invWithLists", dataVersion(), () => withListNegatives(engineHelpers(), readInventory(), readTable("changes")));
+}
+
+/** Ledgers kept per "checked up to" day until the data changes (the Day by day page moves between a few days). */
+const ledgers = new Map<string, Ledger>();
+let ledgersVersion = "";
+
 export function getLedger(toParam?: string | null): Ledger | null {
   const d = ledgerDays();
   if (!d.days.length) return null;
   const to = toParam && ISO.test(toParam) && d.days.includes(toParam) ? toParam : d.default;
+  const v = dataVersion();
+  if (v !== ledgersVersion) { ledgers.clear(); ledgersVersion = v; }
+  const hit = ledgers.get(to);
+  if (hit) return hit;
   const tables = { searchTerms: readTable("search_terms"), calls: readTable("agency_calls"), keywords: readTable("keywords"), changes: readTable("changes") };
-  // shared-list words seen going in through the change history count as campaign-level negatives of every campaign using the list
-  const inv = withListNegatives(engineHelpers(), readInventory(), tables.changes);
-  const intent = intentRules();
-  const key = [d.first, to, inv?.exported_ms ?? inv?.as_of ?? "", inv?.negatives.length ?? 0, JSON.stringify(intent).length, ...Object.values(tables).map((t) => t.length)].join("|");
-  if (cache?.key === key) return cache.out;
-  const out = buildLedger(engineHelpers(), { ...tables, inv, intent, from: d.first, to, grace: getModel().agency?.grace_days ?? 3, projectOf: projectOfFn() });
-  cache = { key, out };
+  const out = buildLedger(engineHelpers(), { ...tables, inv: invWithLists(), intent: intentRules(), from: d.first, to, grace: getModel().agency?.grace_days ?? 3, projectOf: projectOfFn() });
+  if (ledgers.size >= 8) ledgers.clear();
+  ledgers.set(to, out);
   return out;
 }
 
@@ -63,20 +74,21 @@ export function getLedger(toParam?: string | null): Ledger | null {
  * Deadlines are judged on this day, not on today's clock: the account is only known as it was when it was exported.
  */
 export function dataAsOf(): string {
+  return memo("dataAsOf", dataVersion(), dataAsOfNow);
+}
+function dataAsOfNow(): string {
   const changes = readTable("changes");
   const lastChange = changes.reduce((m, c) => (String(c.day ?? "") > m ? String(c.day) : m), "");
   return [readInventory()?.as_of ?? "", String(config().changes_through ?? ""), lastChange].sort().pop() || todayIST();
 }
 
-let fcache: { led: Ledger; out: FollowupResult } | null = null;
+const fcache = new WeakMap<Ledger, FollowupResult>();
 /** Follow-through of every sheet call (followup-core.ts): when it went in, who did it, where, and what the delay cost. */
 export function getFollowup(led: Ledger): FollowupResult {
-  if (fcache?.led === led) return fcache.out;
-  const changes = readTable("changes");
-  const inv = withListNegatives(engineHelpers(), readInventory(), changes);
-  const asOf = dataAsOf();
-  const out = buildFollowup(engineHelpers(), led, { inv, changes, searchTerms: readTable("search_terms"), keywords: readTable("keywords"), asOf });
-  fcache = { led, out };
+  const hit = fcache.get(led);
+  if (hit) return hit;
+  const out = buildFollowup(engineHelpers(), led, { inv: invWithLists(), changes: readTable("changes"), searchTerms: readTable("search_terms"), keywords: readTable("keywords"), asOf: dataAsOf() });
+  fcache.set(led, out);
   return out;
 }
 
@@ -123,7 +135,17 @@ export const FIX_TYPES: { type: FixType; title: string; who: string; why: string
   { type: "ctm", title: "Google's CTM campaign", who: "Google's CTM team (through County)", why: "Sheet calls in the CTM campaign, which Google's team runs: Excludes not blocked and Adds not done there. They go to Google's team through County, so they carry no agency deadline. County put the CTM Adds on hold on 25 Nov until November is compared with Ivory Non-brand." },
 ];
 
+const fixCache = new WeakMap<Ledger, FixItem[]>();
+/** The fix list for a ledger, built once (the layout and the pages all ask for it). */
 export function fixList(led: Ledger): FixItem[] {
+  const hit = fixCache.get(led);
+  if (hit) return hit;
+  const out = fixListNow(led);
+  fixCache.set(led, out);
+  return out;
+}
+
+function fixListNow(led: Ledger): FixItem[] {
   // deadlines are judged on the day the data describes, the same day the follow-through uses
   const today = dataAsOf();
   const rows: Omit<FixItem, "due" | "overdue">[] = [];
@@ -160,8 +182,11 @@ export function fixList(led: Ledger): FixItem[] {
         todo: `Add negative ${neg}${why}`, where: negPath(s.campaign, ""),
         cost: s.cost, conv: s.conv, since: s.call_day, note: [partly, listNote(s), ccNote].filter(Boolean).join(" ") });
     } else if (s.verdict === "Add" && s.blocked !== "yes" && !s.is_keyword && !s.sop_brand) {
+      // ad group theming: add it in the ad group whose theme the search names (Apartments In Gurgaon for "apartment in gurgaon")
+      const fit = bestGroups(engineHelpers(), led.ad_groups_of[s.campaign] ?? s.ad_groups, s.term).best;
+      const into = fit.length ? (fit.includes(ag) ? ag : fit[0]) : ag;
       out.push({ type: ctm ? "ctm" : "add_open", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
-        todo: `Add keyword "${s.term}"`, where: kwPath(s.campaign, ag), cost: s.cost, conv: s.conv, since: s.call_day, note: [intentNote(s), ccNote].filter(Boolean).join(" ") });
+        todo: `Add keyword "${s.term}"${into && into !== ag ? ` in ${into} (its theme; it ran in ${ag})` : into ? ` in ${into}` : ""}`, where: kwPath(s.campaign, into), cost: s.cost, conv: s.conv, since: s.call_day, note: [intentNote(s), ccNote].filter(Boolean).join(" ") });
     } else if (s.verdict === "Add" && s.blocked === "yes" && blk && !blk.county_rule && !blk.sop_brand && !s.sop_brand && !costlyKey.has(`${s.campaign}${blk.ad_group}${blk.text.toLowerCase()}`)) {
       out.push({ type: ctm ? "ctm" : "add_blocked", id: s.id, project: s.project, campaign: s.campaign, ad_group: ag, term: s.term,
         todo: `Remove or narrow negative ${blk.text} (${blk.level}${blk.ad_group ? ` ${blk.ad_group}` : ""})`, where: negPath(s.campaign, blk.ad_group),
@@ -214,6 +239,9 @@ export function fixList(led: Ledger): FixItem[] {
 
 /** When each negative was added, from the change history (campaign, ad group, text in lower case). */
 function negAddedOn() {
+  return memo("negAddedOn", dataVersion(), negAddedOnNow);
+}
+function negAddedOnNow() {
   const m = new Map<string, { day: string; by: string }>();
   for (const c of readTable("changes")) {
     const kind = String(c.kind ?? "");

@@ -132,3 +132,53 @@ test('dueDay: 3 days, and a deadline on a Saturday or Sunday moves to Monday', a
   assert.strictEqual(dueDay('2026-11-19', 3), '2026-11-23', 'Thu tab: Sun moves to Mon');
   assert.strictEqual(dueDay('2026-11-20', 3), '2026-11-23', 'Fri tab: due Mon');
 });
+
+test('a negative from before the search last ran is not how the Exclude went in (it was removed since)', async () => {
+  const { buildLedger } = await lib('ledger-core.ts');
+  const F = await lib('followup-core.ts');
+  // "-2" went in Dec 2024 and Auto-Apply removed it in Apr 2025; the full search went in late, on 24 Nov 2026
+  const changes = [
+    ch('2024-12-09T12:10:00', 'negative broad match keyword added', '-2', '', C, 'ago.webteam@agency.example'),
+    ch('2025-04-22T07:34:00', 'negative broad match keyword removed', '-2', '', C, 'Recommendations Auto-Apply'),
+    ch('2026-11-24T12:00:00', 'negative exact match keyword added', '-[b 95 sector 2 noida]'),
+  ];
+  const inv = { as_of: '2026-11-26', name: 'x', lists: [], negatives: [neg('2', 'broad'), neg('[b 95 sector 2 noida]', 'exact')] };
+  const searchTerms = [st('2026-11-16', 'b 95 sector 2 noida', 30)];
+  const calls = [call('2026-11-16', 'b 95 sector 2 noida', 'Exclude', 'b 95 sector 2 noida')];
+  const led = buildLedger(H, { from: '2026-11-16', to: '2026-11-26', grace: 3, projectOf: () => 'ivory', searchTerms, calls, keywords: [], changes, inv });
+  const f = F.buildFollowup(H, led, { inv, changes, searchTerms, keywords: [], asOf: '2026-11-26' }).items[0];
+  assert.deepStrictEqual([f.status, f.done.day, f.done.kind], ['late', '2026-11-24', 'term']);
+});
+
+test('ad group theming: an Add belongs in the ad group whose theme the search names (owner, 27 Nov 2026)', async () => {
+  const { buildLedger } = await lib('ledger-core.ts');
+  const F = await lib('followup-core.ts');
+  const G = 'ROI_CocoaCounty_Non_Brand_Search_NCR_Sept_26';
+  const groups = ['Apartments In Gurgaon', 'Flat In Gurgaon', '3 Bhk Flat In Gurgaon', '3 BHK Apartments in Gurgaon', 'Projects In Gurgaon'];
+  assert.deepStrictEqual(F.bestGroups(H, groups, 'apartment in gurgaon').best, ['Apartments In Gurgaon', '3 BHK Apartments in Gurgaon']);
+  assert.deepStrictEqual(F.bestGroups(H, groups, '3bhk flats in gurgaon').best, ['3 Bhk Flat In Gurgaon']);
+  assert.deepStrictEqual(F.bestGroups(H, groups, 'cocoa county gurgaon price').best, [], 'no ad group theme in the search');
+  assert.deepStrictEqual(F.bestGroups(H, ['Villa in Noida', 'Pent House in Noida'], 'penthouse noida').best, ['Pent House in Noida']);
+
+  const searchTerms = [st('2026-11-02', 'apartment in gurgaon', 50, 'Flat In Gurgaon', G), st('2026-11-02', 'flat in gurgaon', 40, 'Flat In Gurgaon', G), st('2026-11-02', 'gurgaon apartment buy', 30, 'Flat In Gurgaon', G)];
+  const calls = [call('2026-11-02', 'apartment in gurgaon', 'Add', '', G), call('2026-11-02', 'flat in gurgaon', 'Add', '', G), call('2026-11-02', 'gurgaon apartment buy', 'Add', '', G)];
+  const keywords = [
+    { keyword_status: 'Enabled', campaign: G, ad_group: 'Flat In Gurgaon', keyword: '"apartment in gurgaon"' },
+    { keyword_status: 'Enabled', campaign: G, ad_group: 'Flat In Gurgaon', keyword: '"flat in gurgaon"' },
+    ...groups.map((g) => ({ keyword_status: 'Enabled', campaign: G, ad_group: g, keyword: `x ${g}` })),
+  ];
+  const changes = [
+    ch('2026-11-03T11:00:00', 'phrase match keyword added', '"apartment in gurgaon"', 'Flat In Gurgaon', G),
+    ch('2026-11-03T11:00:00', 'phrase match keyword added', '"flat in gurgaon"', 'Flat In Gurgaon', G),
+  ];
+  const inv = { as_of: '2026-11-10', name: 'x', lists: [], negatives: [] };
+  const led = buildLedger(H, { from: '2026-11-01', to: '2026-11-09', grace: 3, projectOf: () => 'cocoa', searchTerms, calls, keywords, changes, inv });
+  const fu = F.buildFollowup(H, led, { inv, changes, searchTerms, keywords, asOf: '2026-11-10' });
+  const by = Object.fromEntries(fu.items.map((f) => [f.term, f]));
+  assert.strictEqual(by['apartment in gurgaon'].status, 'on_time', 'it is a keyword, so the Add is done');
+  assert.strictEqual(by['apartment in gurgaon'].wrong_theme, 'Flat In Gurgaon', 'but in the Flat ad group');
+  assert.strictEqual(by['flat in gurgaon'].wrong_theme, '', 'Flat In Gurgaon is its theme');
+  assert.strictEqual(by['gurgaon apartment buy'].wrong_theme, '', 'not a keyword yet: nothing to move');
+  assert.deepStrictEqual(by['gurgaon apartment buy'].theme_best, ['Apartments In Gurgaon', '3 BHK Apartments in Gurgaon']);
+  assert.strictEqual(F.scorecard(fu.items).add.wrong_theme, 1);
+});

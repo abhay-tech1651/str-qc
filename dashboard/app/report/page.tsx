@@ -6,7 +6,7 @@ import { getAudit } from "@/lib/audit";
 import { addSegs, exSegs, KIND_LABEL, negPath } from "@/lib/follow-labels";
 import { cn, dlong, dshort, inr, n0, pcolor } from "@/lib/format";
 import { Card, EmptyState, Explain, PageHeader, Section } from "@/components/ui";
-import { FollowTable, ScoreBar } from "@/components/audit-views";
+import { FollowTable, ScoreBar, ThemeKeywordTable } from "@/components/audit-views";
 import { NegHurtTable } from "@/components/neg-hurt-table";
 import { UpToPicker } from "@/components/upto-picker";
 
@@ -37,6 +37,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   const late = agency.filter((f) => f.status === "late").sort((a, b) => b.cost_late - a.cost_late || b.days_late - a.days_late);
   const open = agency.filter((f) => f.type === "exclude" && (f.status === "open_overdue" || f.status === "wrong_place"));
   const adds = agency.filter((f) => f.type === "add" && (f.status === "open_overdue" || f.status === "elsewhere" || f.status === "blocked"));
+  const themeMiss = agency.filter((f) => f.type === "add" && f.wrong_theme);
   const negs = fixes.filter((f) => f.type === "neg_blocks_good" || f.type === "keyword_blocked");
   const exAll = agency.filter((f) => f.type === "exclude");
   const oneWordWritten = exAll.filter((f) => f.written_kind === "one_word" || f.written_kind === "none").sort((a, b) => b.call_day.localeCompare(a.call_day));
@@ -60,7 +61,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
       </Card>
 
       <nav className="no-print mt-6 flex flex-wrap gap-2 text-[13px]">
-        {[["#late", `1 · Late Excludes (${n0(late.filter((f) => f.type === "exclude").length)})`], ["#open", `2 · Excludes not working (${n0(open.length)})`], ["#adds", `3 · Adds not done (${n0(adds.length)})`], ["#negatives", `4 · Negatives that hurt (${n0(negs.length)})`], ["#sheet", "5 · How the sheet writes negatives"], ["#fair", "6 · Done well"]].map(([h, t]) => (
+        {[["#late", `1 · Late Excludes (${n0(late.filter((f) => f.type === "exclude").length)})`], ["#open", `2 · Excludes not working (${n0(open.length)})`], ["#adds", `3 · Adds not done (${n0(adds.length)})`], ["#theme", `3b · Adds in the wrong theme (${n0(themeMiss.length)})`], ["#theme-kw", `3c · Keywords outside their theme (${n0(A.themeKeywords.length)})`], ["#negatives", `4 · Negatives that hurt (${n0(negs.length)})`], ["#sheet", "5 · How the sheet writes negatives"], ["#fair", "6 · Done well"]].map(([h, t]) => (
           <a key={h} href={h} className="rounded-full border bg-card px-3 py-1 hover:bg-muted">{t}</a>
         ))}
       </nav>
@@ -81,6 +82,33 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
         description={<>{n0(C.add.open_overdue)} searches the sheet said to Add are not a keyword in any campaign, {n0(C.add.elsewhere)} are a keyword only in another campaign, and {n0(C.add.blocked)} are blocked by a negative, past their deadline. An Add not done means the search runs only through broader keywords, with no bid or ad of its own.</>}>
         <Check>Google Ads › the campaign › Search keywords: search for the words. A keyword added after the keyword report was downloaded shows in the Change history.</Check>
         <FollowTable rows={adds} labels={labels} cols={["term", "campaign", "day", "due", "status", "how", "late", "cost"]} csvName="adds-not-done" sort={{ key: "days_late", dir: "desc" }} />
+      </Section>
+
+      <Section className="scroll-mt-20" title={<span id="theme">3b · Adds in an ad group of another theme</span>}
+        description={<>Each ad group holds one theme, named in its title, and its ads and landing page speak to it. A search the sheet said to Add belongs in the ad group whose theme it names: <i>apartment in gurgaon</i> in Apartments In Gurgaon, not in Flat In Gurgaon. Otherwise its ad does not match the search and Google rates the ad relevance lower. {n0(themeMiss.length)} Adds became keywords only in an ad group of another theme. Do instead: add the keyword in the ad group shown, and pause the copy in the wrong one (a keyword that has converted can stay until the new one has its own history).</>}>
+        <Check>Google Ads › the campaign › Search keywords, Ad group column: the keyword is in the ad group shown under How it went in.</Check>
+        <FollowTable rows={themeMiss} labels={labels} cols={["term", "campaign", "day", "status", "how", "cost"]} csvName="adds-wrong-theme" empty="Every Add that went in sits in an ad group of its theme." />
+      </Section>
+
+      <Section className="scroll-mt-20" title={<span id="theme-kw">3c · Keywords in the account outside their ad group&apos;s theme</span>}
+        description={<>Every enabled keyword, sheet or not, checked against the ad groups of its own campaign: each campaign has its own set (Cocoa Gurgaon has Flat, Apartments and 3 or 4 BHK ad groups; Jade has no Property ad group). A keyword is listed only when its campaign has an ad group whose theme fits it better than the one it is in. A keyword whose campaign has no ad group of its theme is left alone. {n0(A.themeKeywords.length)} keywords.</>}>
+        <ThemeKeywordTable rows={A.themeKeywords} labels={labels} />
+        <details className="mt-4 rounded-lg border bg-card p-4 text-[13px]">
+          <summary className="cursor-pointer font-medium">The ad groups of each campaign, and their theme words</summary>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            {A.adGroups.map((c) => (
+              <div key={c.campaign}>
+                <div className="font-medium">{lab(c.campaign)}</div>
+                <ul className="mt-1 space-y-0.5 text-[12.5px] text-muted-foreground">
+                  {c.groups.map((g) => (
+                    <li key={g.name}><span className={cn("text-foreground", !g.enabled && "line-through opacity-60")}>{g.name}</span>{" "}· {g.theme.length ? g.theme.join(", ") : "no theme word"} · {n0(g.enabled)} enabled keywords · {inr(g.cost)}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[12px] text-muted-foreground">From the keyword report (all time). Theme words are the ad group&apos;s name without places and filler words; struck out: no enabled keyword. An ad group report from Google Ads (Campaigns › Ad groups) would add ad groups with no keyword and their status.</p>
+        </details>
       </Section>
 
       <Section className="scroll-mt-20" title={<span id="negatives">4 · Negatives that block searches we want</span>}

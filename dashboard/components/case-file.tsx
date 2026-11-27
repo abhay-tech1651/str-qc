@@ -33,6 +33,11 @@ function verdict(f: Followup, s: Search): { tone: Tone; text: string } {
     if (f.status === "open_overdue") return { tone: "bad", text: `Not done, ${late} past the deadline (${dshort(f.due)}). No negative blocks it.${f.cost_late > 0 ? ` ${inr(f.cost_late)} spent after the deadline.` : " It has not cost money since the deadline."}` };
     return { tone: "muted", text: `Not due yet: the sheet said Exclude in the ${dshort(f.call_day)} tab, and the deadline is ${dlong(f.due)}.` };
   }
+  const theme = f.wrong_theme ? ` But it sits in ${f.wrong_theme}, an ad group of another theme: it belongs in ${f.theme_best.join(" or ")}, so its ad matches the search.` : "";
+  if (theme && (f.status === "on_time" || f.status === "late" || f.status === "already")) {
+    const head = f.status === "already" ? "It was a keyword before the sheet asked for it." : `Added as a keyword${f.status === "late" ? ` ${late} late` : " on time"}${by}.`;
+    return { tone: "warn", text: head + theme };
+  }
   if (f.status === "on_time") return { tone: "good", text: `Added as a keyword on time${by}.` };
   if (f.status === "late") return { tone: "warn", text: `Added as a keyword ${late} late${by}.` };
   if (f.status === "already") return { tone: "muted", text: "It was a keyword before the sheet asked for it." };

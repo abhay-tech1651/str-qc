@@ -63,6 +63,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     { n: C.ex.open_overdue, title: "Excludes not done, past the deadline", sub: C.ex.cost_leaking > 0 ? `${inr(C.ex.cost_leaking)} spent after the deadline` : "no negative blocks them", href: `/report${q({})}#open` },
     { n: C.ex.wrong_place, title: "Excludes put in the wrong ad group", sub: "a negative went in, but not where the search runs", href: `/report${q({})}#open` },
     { n: addBad, title: "Adds not done, past the deadline", sub: `${n0(C.add.open_overdue)} not a keyword anywhere, ${n0(C.add.elsewhere)} only in another campaign, ${n0(C.add.blocked)} blocked`, href: `/report${q({})}#adds` },
+    { n: C.add.wrong_theme, title: "Adds in an ad group of another theme", sub: "a keyword now, but not in the ad group whose theme the search names", href: `/report${q({})}#theme` },
     { n: fx("neg_blocks_good").length, title: "Negatives blocking searches we want", sub: "mostly one word at campaign level; swap each for the full junk searches", href: `/report${q({})}#negatives` },
     { n: fx("keyword_blocked").length, title: "Negatives switching off our own keywords", sub: `${n0(kwOff)} enabled keywords cannot show`, href: `/report${q({})}#negatives` },
     { n: fx("county_comment").length, title: "County comments not answered", sub: "the sheet and the account do not follow the comment yet", href: `/fix${q({ type: "county_comment" })}` },

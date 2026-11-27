@@ -103,6 +103,10 @@ export interface Followup {
   county_comment: string;
   /** wrong place: where it went instead (another ad group, or another campaign) */
   elsewhere: string;
+  /** for an Add: the ad groups of the campaign whose theme fits the search best (none when no ad group's theme is in it) */
+  theme_best: string[];
+  /** for an Add that became a keyword: the ad group(s) it is in when none of them is one that fits its theme; else "" */
+  wrong_theme: string;
 }
 
 export interface TabDay {
@@ -125,6 +129,36 @@ export interface ChangeDay {
   other: { ts: string; who: string; org: Org; campaign: string; kind: string; item: string }[];
   /** one-word negatives that went in that day */
   one_words: { text: string; campaign: string; ad_group: string; list: string; who: string }[];
+}
+
+/* ---------------------------------------------------------------- ad group theming (owner, 27 Nov 2026) */
+/**
+ * Each ad group holds one theme, named in its title (Apartments In Gurgaon, 3 Bhk Flats, Villa in Noida, Godrej): a
+ * search the sheet says to Add belongs in the ad group whose theme it names, so its ad and landing page match it
+ * ("apartment in gurgaon" in Apartments In Gurgaon, not in Flat In Gurgaon). Theme words are the ad group's name
+ * without places and filler; plurals count as the same word.
+ */
+const THEME_STOP = new Set(["in", "on", "at", "of", "for", "the", "a", "and", "near", "by", "to", "noida", "gurgaon", "gurugram",
+  "ghaziabad", "ghaziabaad", "delhi", "ncr", "dwarka", "expressway", "sector", "sec", "brand", "phrase", "pharse", "exact", "terms",
+  "broad", "search", "generic", "county", "ivory", "clove", "cocoa", "jade", "group", "new", "buy", "sale", "luxury", "best", "top",
+  // people do not search "residential projects in ghaziabad": the theme of a Residential Projects ad group is "project" (owner, 27 Nov 2026)
+  "residential"]);
+const SINGULAR: Record<string, string> = { apartments: "apartment", flats: "flat", villas: "villa", homes: "home", houses: "house",
+  societies: "society", projects: "project", properties: "property", penthouses: "penthouse", residences: "residence", "3bhk": "3", "4bhk": "4", "5bhk": "5" };
+/** A name or search as theme words: lower case, singular, "pent house" as one word, "3 bhk" as "3" + "bhk". */
+export function themeWords(H: Helpers, s: string): string[] {
+  const t = H.tok(str(s).toLowerCase().replace(/pent\s*house/g, "penthouse")).map((w) => SINGULAR[w] ?? w);
+  if (t.some((w) => /^[345]$/.test(w)) && !t.includes("bhk")) t.push("bhk");
+  return [...new Set(t.filter((w) => !THEME_STOP.has(w)))];
+}
+/** The ad groups of a campaign that fit a search best (most theme words in common); none when no ad group's theme is in it. */
+export function bestGroups(H: Helpers, groups: string[], term: string): { best: string[]; score: (g: string) => number } {
+  const q = new Set(themeWords(H, term));
+  const score = (g: string) => themeWords(H, g).filter((w) => q.has(w)).length;
+  const top = Math.max(0, ...groups.map(score));
+  // on a tie, the ad group with the fewest other theme words first: "apartment in gurgaon" fits Apartments In Gurgaon before 3 BHK Apartments
+  const extra = (g: string) => themeWords(H, g).length;
+  return { best: top > 0 ? groups.filter((g) => score(g) === top).sort((a, b) => extra(a) - extra(b) || a.localeCompare(b)) : [], score };
 }
 
 const emptyEx = () => ({ n: 0, on_time: 0, late: 0, open_overdue: 0, open_in_time: 0, wrong_place: 0, county_query: 0 });
@@ -193,6 +227,14 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
     kwCamps.get(kk)!.add(str(k.campaign));
   }
   for (const [kk, l] of kwEv) for (const e of l) { if (!kwCamps.has(kk)) kwCamps.set(kk, new Set()); kwCamps.get(kk)!.add(e.campaign); }
+  // the ad groups each keyword is enabled in today, per campaign
+  const kwGroups = new Map<string, Set<string>>();
+  for (const k of inp.keywords) {
+    if (str(k.keyword_status) !== "Enabled" || !str(k.ad_group)) continue;
+    const key = keyOf(str(k.campaign), H.tok(str(k.keyword)));
+    if (!kwGroups.has(key)) kwGroups.set(key, new Set());
+    kwGroups.get(key)!.add(str(k.ad_group));
+  }
 
   // the account's negatives per campaign and ad group, indexed by their first word (exact ones by all their words)
   const invIdx = new Map<string, Map<string, InvNeg[]>>();
@@ -222,7 +264,10 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
   /** When did the account start blocking this search: the earliest campaign-level (or shared-list) negative, or the day
    *  the last ad group got one (an ad-group negative only stops a search when every ad group of the campaign has one). */
   const blockedAt = (s: Search, q: string[]): Done | null => {
-    const evs = (negEv.get(s.campaign) ?? []).filter((e) => H.blocks(e.match, e.words, q));
+    // a negative from before the last day the search ran did not stop it (it was removed later, e.g. "-2" from Dec 2024
+    // removed by Auto-Apply in Apr 2025), so only negatives from that day on can be how the Exclude went in
+    const floor = s.last_day || s.call_day;
+    const evs = (negEv.get(s.campaign) ?? []).filter((e) => e.day >= floor && H.blocks(e.match, e.words, q));
     // the first day a campaign-level (or shared-list) negative went in; when several went in that day (often the full
     // search and a single word together), the most specific one is how it went in
     const RANK: Record<NegKind, number> = { term: 0, part: 1, one_word: 2 };
@@ -294,6 +339,16 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
         status = asOf <= due ? "open_in_time" : other.length ? "elsewhere" : "open_overdue";
       }
     }
+    // ad group theming: an Add belongs in the ad group whose theme the search names
+    let theme_best: string[] = [], wrong_theme = "";
+    if (type === "add") {
+      theme_best = bestGroups(H, led.ad_groups_of[s.campaign] ?? s.ad_groups, s.term).best;
+      if (theme_best.length && (status === "on_time" || status === "late" || status === "already")) {
+        const inGroups = new Set(kwGroups.get(keyOf(s.campaign, q)) ?? []);
+        if (!inGroups.size && done?.ad_group) inGroups.add(done.ad_group);
+        if (inGroups.size && ![...inGroups].some((g) => theme_best.includes(g))) wrong_theme = [...inGroups].sort().join(", ");
+      }
+    }
     const k = s.id;
     const doneDay = done?.dated ? done.day : "";
     const isOpen = status === "open_overdue" || status === "open_in_time" || status === "wrong_place" || status === "elsewhere" || status === "blocked";
@@ -308,7 +363,7 @@ export function buildFollowup(H: Helpers, led: Ledger, inp: {
       cost_before: spend(k, (d) => d <= s.call_day), cost_grace: spend(k, (d) => d > s.call_day && d <= due), cost_late,
       cost_after_done: type === "exclude" && doneDay ? spend(k, (d) => d > doneDay) : 0,
       conv: s.conv, intent: s.intent, intent_why: s.intent_why, written: s.neg_written, written_kind: s.neg_written_kind,
-      county_comment: s.county_comment, elsewhere,
+      county_comment: s.county_comment, elsewhere, theme_best, wrong_theme,
     });
   }
   out.sort((a, b) => b.call_day.localeCompare(a.call_day) || b.cost_late - a.cost_late);
@@ -401,6 +456,8 @@ export function scorecard(items: Followup[]) {
       n: add.length, due: addDue.length, on_time: count(add, "on_time"), late: count(add, "late"), already: count(add, "already"),
       open_overdue: count(add, "open_overdue"), elsewhere: count(add, "elsewhere"), blocked: count(add, "blocked"), open_in_time: count(add, "open_in_time"),
       sop_brand: count(add, "sop_brand"), county_rule: count(add, "county_rule"),
+      /** became a keyword, but only in an ad group of another theme */
+      wrong_theme: add.filter((f) => f.wrong_theme).length,
     },
   };
 }

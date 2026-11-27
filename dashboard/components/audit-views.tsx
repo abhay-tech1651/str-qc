@@ -55,7 +55,7 @@ export function HowCell({ f }: { f: Followup }) {
     <span className="block min-w-0">
       <span className="block break-words font-mono text-[12px]">{d.text}</span>
       <span className="block text-[12px] text-muted-foreground">
-        {f.type === "exclude" ? <>{LEVEL_LABEL[d.level]}{d.list ? ` · ${d.list}` : d.ad_group ? ` · ${d.ad_group}` : ""} · <span className={cn(d.kind === "one_word" && "font-medium text-bad")}>{KIND_LABEL[d.kind]}</span></> : <>{d.ad_group || "keyword"}</>}
+        {f.type === "exclude" ? <>{LEVEL_LABEL[d.level]}{d.list ? ` · ${d.list}` : d.ad_group ? ` · ${d.ad_group}` : ""} · <span className={cn(d.kind === "one_word" && "font-medium text-bad")}>{KIND_LABEL[d.kind]}</span></> : f.wrong_theme ? <span className="text-warn">in {f.wrong_theme}; its theme fits {f.theme_best.join(" or ")}</span> : <>{d.ad_group || "keyword"}</>}
       </span>
     </span>
   );
@@ -116,4 +116,19 @@ export function OneWordTable({ rows, labels }: { rows: OneWordRow[]; labels: Rec
     { key: "hurt", label: "Blocks what we want", value: (r) => (r.hurt ? "yes" : ""), render: (r) => (r.hurt ? <span className="font-medium text-bad">yes</span> : <span className="text-muted-foreground">–</span>), sortable: true },
   ];
   return <DataTable rows={rows as (OneWordRow & Record<string, unknown>)[]} columns={cols} csvName="one-word-negatives" pageSize={10} initialSort={{ key: "hurt", dir: "desc" }} />;
+}
+
+export interface ThemeKwRow { campaign: string; ad_group: string; keyword: string; fits: string[]; cost: number; conv: number }
+/** Keywords in the account that sit in an ad group of another theme, with the ad group of their own campaign that fits. */
+export function ThemeKeywordTable({ rows, labels }: { rows: ThemeKwRow[]; labels: Record<string, string> }) {
+  const lab = (c: string) => labels[c] ?? c;
+  const columns: Column<ThemeKwRow & Record<string, unknown>>[] = [
+    { key: "keyword", label: "Keyword", value: (r) => r.keyword, render: (r) => <span className="font-mono text-[12px]">{r.keyword}</span> },
+    { key: "campaign", label: "Campaign", value: (r) => lab(r.campaign), render: (r) => <span className="text-[12.5px]">{lab(r.campaign)}</span> },
+    { key: "ad_group", label: "It is in", value: (r) => r.ad_group, render: (r) => <span className="text-[12.5px] text-warn">{r.ad_group}</span> },
+    { key: "fits", label: "Its theme fits", value: (r) => r.fits.join(", "), render: (r) => <span className="text-[12.5px]">{r.fits.join(" or ")}</span> },
+    { key: "cost", label: "₹ all time", align: "right", value: (r) => Math.round(r.cost), render: (r) => <span className="tabular">{inr(r.cost)}</span>, sortable: true },
+    { key: "conv", label: "Conv.", align: "right", value: (r) => r.conv, render: (r) => <span className="tabular">{r.conv ? n0(r.conv) : "–"}</span>, sortable: true },
+  ];
+  return <DataTable rows={rows as (ThemeKwRow & Record<string, unknown>)[]} columns={columns} csvName="keywords-wrong-theme" pageSize={25} empty="Every enabled keyword sits in an ad group of its theme." initialSort={{ key: "cost", dir: "desc" }} />;
 }

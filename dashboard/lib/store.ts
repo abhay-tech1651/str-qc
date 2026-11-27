@@ -42,8 +42,47 @@ function writeJson(p: string, v: unknown) {
   fs.renameSync(tmp, p); // atomic replace: a crash never leaves half a file
 }
 
+/* ---------------------------------------------------------------- big files, parsed once until they change
+ * The change history alone is 16 MB; every page used to parse it several times. A table is parsed again only when its
+ * file changes (time and size), so an import is seen at once. Callers must not change the rows they get (read-only). */
+const parsed = new Map<string, { sig: string; v: unknown }>();
+function readShared<T>(p: string, fallback: T): T {
+  let sig: string;
+  try {
+    const st = fs.statSync(p);
+    sig = `${st.mtimeMs}|${st.size}`;
+  } catch {
+    return fallback;
+  }
+  const hit = parsed.get(p);
+  if (hit && hit.sig === sig) return hit.v as T;
+  const v = readJson<T>(p, fallback);
+  parsed.set(p, { sig, v });
+  return v;
+}
+
+/** Rows of a data table, shared between calls: read them, never change them. */
 export function readTable(t: Table): Record<string, unknown>[] {
-  return readJson<Record<string, unknown>[]>(tablePath(t), []);
+  return readShared<Record<string, unknown>[]>(tablePath(t), []);
+}
+
+/**
+ * A key that changes whenever any data the pages are built from changes (the data files, the inventory, the intent
+ * rules) or the day turns. Results kept under it (memo) are rebuilt after an import or a refresh of the sheet.
+ */
+export function dataVersion(): string {
+  const files = [...TABLES.map((t) => tablePath(t)), filesPath, path.join(DATA, "projects.json"), inventoryPath, path.join(ROOT, "config", "intent.json")];
+  return files.map((p) => { try { const st = fs.statSync(p); return `${st.mtimeMs}:${st.size}`; } catch { return "0"; } }).join("|") + "|" + todayIST();
+}
+
+const memos = new Map<string, { key: string; v: unknown }>();
+/** Keep one result per name until its key changes (key: dataVersion() plus whatever the result depends on). */
+export function memo<T>(name: string, key: string, build: () => T): T {
+  const hit = memos.get(name);
+  if (hit && hit.key === key) return hit.v as T;
+  const v = build();
+  memos.set(name, { key, v });
+  return v;
 }
 
 export function loadedFiles(): LoadedFile[] {
@@ -250,7 +289,7 @@ const inventoryPath = path.join(DATA, "negative_inventory.json");
 
 /** The last "Negative keyword report" loaded: every negative in the account when it was downloaded. */
 export function readInventory(): Inventory | null {
-  return readJson<Inventory | null>(inventoryPath, null);
+  return readShared<Inventory | null>(inventoryPath, null);
 }
 
 /** The negative keyword report is a snapshot of the whole account: the newest download replaces the one before. */
@@ -412,6 +451,9 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The last day with complete data: the newest campaign or search-term day, never today. */
 export function lastCompleteDay(): string {
+  return memo("lastCompleteDay", dataVersion(), lastCompleteDayNow);
+}
+function lastCompleteDayNow(): string {
   const yesterday = addDay(todayIST(), -1);
   const days = [...readTable("campaign_days"), ...readTable("search_terms")].map((r) => String(r.day ?? "")).filter((d) => ISO.test(d));
   const max = days.sort().pop() ?? yesterday;
@@ -445,7 +487,8 @@ export function getData(period: Period = null): { model: Model; review: ReviewRo
   const hit = cache.get(key);
   if (hit) return hit;
   const T: Record<string, unknown[]> = {};
-  for (const t of TABLES) T[t] = readTable(t);
+  // the engine gets its own copy of the rows: the shared rows are read-only
+  for (const t of TABLES) T[t] = readTable(t).map((r) => ({ ...r }));
   const cfg = config();
   if (period) {
     const inP = (r: unknown) => { const d = String((r as { day?: unknown }).day ?? ""); return d >= period.from && d <= period.to; };

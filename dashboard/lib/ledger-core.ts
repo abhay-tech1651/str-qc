@@ -22,6 +22,8 @@ import type { Helpers, Inventory, InvNeg } from "./neg-inventory-core";
 type Row = Record<string, unknown>;
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number(v) || 0);
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+/** A County comment that says there is no comment: "None", "na", "n/a", "nil", "-". */
+export const NO_COMMENT = /^(none|na|n\/a|nil|-+)\.?$/i;
 const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
 
 export const OUTCOMES = ["results", "results_blocked", "junk_blocked", "junk_open", "add_done", "add_open", "add_blocked", "discuss", "kept", "blocked_anyway", "not_reviewed"] as const;
@@ -274,7 +276,9 @@ export function buildLedger(H: Helpers, inp: {
     const firstEx = calls.find((c) => str(c.decision) === "Exclude");
     const call_day = verdict === "Exclude" && firstEx ? str(firstEx.day) : last ? str(last.day) : calls.length ? str(calls[0].day) : "";
     const withNeg = [...calls].reverse().find((c) => str(c.neg_term).trim());
-    const withComment = [...calls].reverse().find((c) => str(c.county_comment).trim());
+    // County's latest comment counts; "None" (or "na", "-") written over an earlier comment withdraws it (owner, 27 Nov 2026)
+    const latestComment = [...calls].reverse().find((c) => str(c.county_comment).trim());
+    const withComment = latestComment && !NO_COMMENT.test(str(latestComment.county_comment).trim()) ? latestComment : undefined;
 
     // the account today: blocked at campaign level, or in every ad group it ran in
     const bl = inp.inv ? blockersOf(a.campaign, a.q) : [];

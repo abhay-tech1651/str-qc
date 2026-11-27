@@ -137,3 +137,18 @@ test('buildLedger: SOP rule 1 (brand words in non-brand) and ad-group negatives 
   assert.ok(costly.includes('"best society"|'), 'the campaign-level phrase is what stops the Add');
   assert.ok(!costly.includes('society|Flats'), 'the ad-group -society is not the cause: the campaign-level negative already stops the search');
 });
+
+test('buildLedger: "None" written over a County comment withdraws it (owner, 27 Nov 2026)', async () => {
+  const { buildLedger } = await core();
+  const cc = (day, term, decision, county_comment) => ({ ...call(day, term, decision), county_comment });
+  const led = buildLedger(H, {
+    from: '2026-11-01', to: '2026-11-10', grace: 3, projectOf: () => 'ivory',
+    searchTerms: [st('2026-11-02', 'godrej noida new launch', 'Flats', 50), st('2026-11-02', 'krisumi sales lounge', 'Flats', 40), st('2026-11-02', 'apartment in noida', 'Flats', 30)],
+    calls: [cc('2026-11-02', 'godrej noida new launch', 'Add', 'None'), cc('2026-11-02', 'krisumi sales lounge', 'Add', 'exclude'), cc('2026-11-01', 'apartment in noida', '', 'add'), cc('2026-11-02', 'apartment in noida', '', 'none')],
+    keywords: [], changes: [], inv: { as_of: '2026-11-10', name: 'x', lists: [], negatives: [] },
+  });
+  const by = Object.fromEntries(led.searches.map((s) => [s.term, s]));
+  assert.strictEqual(by['godrej noida new launch'].county_comment, '');
+  assert.strictEqual(by['krisumi sales lounge'].county_comment, 'exclude');
+  assert.strictEqual(by['apartment in noida'].county_comment, '', 'the later "none" withdraws the earlier "add"');
+});
